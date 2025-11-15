@@ -1,0 +1,9 @@
+/city-mood-venv/
+*.csv
+*.zip
+*.json
+*.log
+__pycache__/
+/data/
+.DS_Store
+.

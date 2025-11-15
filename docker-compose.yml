@@ -43,6 +43,7 @@ services:
         EXTERNAL:PLAINTEXT,
         CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       # ---- single-node ----
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -126,7 +127,7 @@ services:
       - ./jars:/opt/spark/jars
     networks:
       - spark-network
-      
+
 volumes:
   postgres-data:
   kafka-data:

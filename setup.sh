@@ -12,7 +12,7 @@ if [ ! -d "$VENV_NAME" ]; then
     
     # Install dependencies
     echo "Install pip dependencies..."
-    pip install schedule kafka-python
+    pip install schedule kafka-python pyspark
 
 else
     echo "Virtual env already exists. Activating..."

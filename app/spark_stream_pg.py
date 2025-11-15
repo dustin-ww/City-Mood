@@ -1,44 +1,66 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import avg
+from pyspark.sql.functions import avg, from_json, col, current_timestamp
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 import time
 
 spark = SparkSession.builder \
     .appName("CityMoodToPostgres") \
     .master("spark://spark-master:7077") \
-    .config("spark.jars.packages", "org.postgresql:postgresql:42.7.2") \
+    .config("spark.jars.packages", "org.postgresql:postgresql:42.7.2,org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
     .getOrCreate()
 
-schema = "timestamp STRING, city STRING, mood STRING, score DOUBLE"
+kafka_schema = StructType([
+    StructField("fetch_timestamp", StringType(), True),
+    StructField("source", StringType(), True),
+    StructField("feature_index", IntegerType(), True),
+    StructField("feature", StringType(), True)  
+])
 
 df = spark.readStream \
-    .option("header", "true") \
-    .schema(schema) \
-    .csv("/opt/spark-data/input")
+    .format("kafka") \
+    .option("kafka.bootstrap.servers", "kafka:9092") \
+    .option("subscribe", "api-data") \
+    .option("startingOffsets", "latest") \
+    .load()
 
-agg = df.groupBy("city").agg(avg("score").alias("avg_mood_score"))
+parsed_df = df.select(
+    from_json(col("value").cast("string"), kafka_schema).alias("data")
+).select("data.*")
+
+scored_df = parsed_df \
+    .groupBy("source") \
+    .count() \
+    .withColumnRenamed("count", "feature_count") \
+    .withColumn("score", col("feature_count").cast(DoubleType()))
+
+overall_score = scored_df.agg(
+    avg("score").alias("avg_score")
+)
 
 def write_to_postgres(batch_df, batch_id):
-    (
-        batch_df
-        .withColumn("updated_at", df.selectExpr("current_timestamp()").limit(1).collect()[0][0])
-        .write
-        .format("jdbc")
-        .option("url", "jdbc:postgresql://postgres:5432/city_mood")
-        .option("dbtable", "mood_aggregates")
-        .option("user", "spark")
-        .option("password", "spark")
-        .option("driver", "org.postgresql.Driver")
-        .mode("append")
-        .save()
-    )
+    if not batch_df.isEmpty():
+        (
+            batch_df
+            .withColumn("updated_at", current_timestamp())
+            .withColumn("metric_name", col("avg_score"))  
+            .write
+            .format("jdbc")
+            .option("url", "jdbc:postgresql://postgres:5432/city_mood")
+            .option("dbtable", "mood_aggregates")
+            .option("user", "spark")
+            .option("password", "spark")
+            .option("driver", "org.postgresql.Driver")
+            .mode("append")
+            .save()
+        )
+        print(f"Batch {batch_id} geschrieben")
 
 query = (
-    agg.writeStream
+    overall_score.writeStream
     .outputMode("complete")
     .foreachBatch(write_to_postgres)
     .trigger(processingTime="5 seconds")
     .start()
 )
-
 
 query.awaitTermination()

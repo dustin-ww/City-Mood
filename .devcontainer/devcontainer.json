@@ -1,0 +1,14 @@
+{
+  "name": "Python PySpark Dev",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "runArgs": [
+    "--network=spark-network"
+  ],
+  "workspaceFolder": "/workspace/app",
+  "mounts": [
+    "source=${localWorkspaceFolder}/app,target=/workspace/app,type=bind"
+  ],
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt"
+}

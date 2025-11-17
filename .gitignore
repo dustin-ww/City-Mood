@@ -8,3 +8,8 @@ __pycache__/
 .DS_Store
 .
 !.devcontainer/devcontainer.json
+
+/spark-apps/
+/spark-data/
+/jars/
+/spark-logs/

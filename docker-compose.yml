@@ -5,6 +5,7 @@ services:
   postgres:
     image: postgres:16
     container_name: postgres
+    hostname: postgres
     environment:
       POSTGRES_USER: spark
       POSTGRES_PASSWORD: spark
@@ -21,6 +22,7 @@ services:
   kafka:
     image: apache/kafka:4.1.1
     container_name: kafka
+    hostname: kafka
     ports:
       - "9092:9092"     # internal access
       - "29092:29092"   # external access
@@ -61,6 +63,7 @@ services:
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
+    hostname: kafka-ui
     depends_on:
       - kafka
     ports:
@@ -86,12 +89,14 @@ services:
       - SPARK_SSL_ENABLED=no
       - SPARK_MASTER_PORT=7077
       - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_PUBLIC_DNS=localhost
     ports:
       - "8080:8080"
       - "7077:7077"
     volumes:
       - ./spark-apps:/opt/spark-apps
       - ./spark-data:/opt/spark-data
+      - ./spark-logs:/opt/spark/logs
     networks:
       - spark-network
 
@@ -101,12 +106,19 @@ services:
     container_name: spark-worker
     hostname: spark-worker
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    deploy:
+      resources:
+        limits:
+          memory: 11G
+        reservations:
+          memory: 10G
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=2G
-      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=10G
+      - SPARK_WORKER_CORES=6
       - SPARK_WORKER_WEBUI_PORT=8081
+      - SPARK_PUBLIC_DNS=localhost
     depends_on:
       - spark-master
     ports:
@@ -114,13 +126,15 @@ services:
     volumes:
       - ./spark-apps:/opt/spark-apps
       - ./spark-data:/opt/spark-data
+      - ./spark-logs:/opt/spark/logs
     networks:
       - spark-network
 
   # PySpark Client
   pyspark:
-    image: spark:python3
+    image: spark:4.0.1
     container_name: pyspark-client
+    hostname: pyspark-client
     entrypoint: ["/bin/bash"]
     stdin_open: true
     tty: true
@@ -131,7 +145,6 @@ services:
     volumes:
       - ./app:/opt/spark-apps
       - ./data:/opt/spark-data
-      - ./jars:/opt/spark/jars
     networks:
       - spark-network
 

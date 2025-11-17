@@ -1,6 +1,10 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import avg, from_json, col, current_timestamp
+from pyspark.sql.functions import avg, from_json, col, current_timestamp, to_timestamp, lit, count
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 spark = SparkSession.builder \
     .appName("CityMoodToPostgres") \
@@ -16,42 +20,44 @@ kafka_schema = StructType([
     StructField("feature", StringType(), True)
 ])
 
+logger.info("Connecting to Kafka...")
 
 df = spark.readStream \
     .format("kafka") \
     .option("kafka.bootstrap.servers", "kafka:9092") \
     .option("subscribe", "hh-traffic-data") \
-    .option("startingOffsets", "latest") \
-    .load() \
-    .drop("timestamp")
+    .option("startingOffsets", "earliest")  \
+    .load()
 
 
+logger.info("Kafka stream created")
 
 parsed_df = df.select(
     from_json(col("value").cast("string"), kafka_schema).alias("data")
 ).select("data.*") \
- .withColumnRenamed("fetch_timestamp", "event_meta_timestamp")   
+ .withColumn("event_time", to_timestamp("fetch_timestamp"))
 
-
-scored_df = parsed_df \
+aggregated = parsed_df \
+    .withWatermark("event_time", "5 minutes") \
     .groupBy("source") \
     .count() \
-    .withColumnRenamed("count", "feature_count") \
-    .withColumn("score", col("feature_count").cast(DoubleType()))
-
-
-overall_score = scored_df.agg(
-    avg("score").alias("avg_score")
-)
-
+    .withColumnRenamed("count", "feature_count")
 
 # --- WRITE TO POSTGRES ---
 def write_to_postgres(batch_df, batch_id):
     if not batch_df.isEmpty():
+        avg_score_value = batch_df.agg(avg("feature_count")).collect()[0][0]
+        
+        result_df = spark.createDataFrame(
+            [(float(avg_score_value) if avg_score_value else 0.0, )],
+            ["avg_score"]
+        )
+        
         (
-            batch_df
+            result_df
+            .withColumn("metric_name", lit("avg_score"))
             .withColumn("updated_at", current_timestamp())
-            .withColumn("metric_name", col("avg_score"))
+            .select("avg_score", "updated_at", "metric_name")
             .write
             .format("jdbc")
             .option("url", "jdbc:postgresql://postgres:5432/city_mood")
@@ -62,11 +68,9 @@ def write_to_postgres(batch_df, batch_id):
             .mode("append")
             .save()
         )
-        print(f"Batch {batch_id} geschrieben")
-
 
 query = (
-    overall_score.writeStream
+    aggregated.writeStream
     .outputMode("complete")
     .foreachBatch(write_to_postgres)
     .trigger(processingTime="5 seconds")

@@ -1,0 +1,29 @@
+@startuml
+package "Data Services" as data_services {
+component "Traffic API Data Fetcher" as API_fetch_1
+component "Sport Club API Data Fetcher" as API_fetch_2
+}
+
+node "Kafka Instances" as kafka_deployment {
+ [Kafka Instance] as k_instance_1
+ [Kafka Instance] as k_instance_2
+}
+
+node "Spark Deployment" as spark_deployment {
+ [Spark Master] as s_instance_1
+ [Spark Worker] as s_instance_2
+}
+
+
+
+component "City Mood Score PySpark" as pyspark_1
+component "Postgres" as postgres
+component "Dashboard" as dashboard
+
+
+spark_deployment --> kafka_deployment : fetch data
+data_services --> kafka_deployment : push messages
+pyspark_1 --> spark_deployment : triggers data processing
+spark_deployment --> postgres : stores mood
+postgres --> dashboard: visualize results
+@enduml

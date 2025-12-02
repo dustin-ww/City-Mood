@@ -1,0 +1,21 @@
+# https://grafana.com/docs/grafana/latest/datasources/postgres/configure/
+apiVersion: 1
+
+datasources:
+  - name: CityMoodPostgres
+    type: postgres
+    url: postgres:5432
+    user: spark
+    secureJsonData:
+      password: 'spark'
+    jsonData:
+      database: city_mood
+      sslmode: 'disable' 
+      maxOpenConns: 100
+      maxIdleConns: 100
+      maxIdleConnsAuto: true
+      connMaxLifetime: 14400
+      postgresVersion: 1600 
+      timescaledb: false
+    isDefault: true
+    editable: true

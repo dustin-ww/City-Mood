@@ -15,3 +15,5 @@ __pycache__/
 /spark-logs/
 
 datasources.md
+
+!timeline-dashboard.json

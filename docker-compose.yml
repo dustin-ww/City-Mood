@@ -148,9 +148,30 @@ services:
     networks:
       - spark-network
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    hostname: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "admin"  
+      GF_DATABASE_TYPE: "sqlite3"
+    depends_on:
+      - postgres
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    networks:
+      - spark-network
+
+
 volumes:
   postgres-data:
   kafka-data:
+  grafana-data:
 
 networks:
   spark-network:

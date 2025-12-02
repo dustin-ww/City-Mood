@@ -16,4 +16,5 @@ __pycache__/
 
 datasources.md
 
-!timeline-dashboard.json
+!simple-timeline-dashboard.json
+!geo-dashboard.json

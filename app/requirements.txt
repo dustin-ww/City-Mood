@@ -1,0 +1,5 @@
+schedule
+kafka-python
+pyspark
+requests
+feedparser

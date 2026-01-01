@@ -1,0 +1,34 @@
+@startuml
+package "API Query Services" as data_services {
+component "Traffic API Script" as API_fetch_1
+component "Weather API Script" as API_fetch_2
+}
+
+package "Kafka Instances" as kafka_deployment {
+ [Kafka Instance ] as k_instance_1
+}
+
+package "Spark Instances" as spark_deployment {
+ [Spark Master] as s_instance_1
+ [Spark Worker (1)] as s_instance_2
+}
+
+note bottom of spark_deployment
+    Both vertical and horizontal scaling are possible by adding more resources or additional Spark workers.
+end note
+
+note bottom of kafka_deployment
+  Both vertical and horizontal scaling are possible by adding more resources or additional Kafka instances.
+end note
+
+component "City Mood Score - PySpark API Script" as pyspark_1
+component "Postgres" as postgres
+component "Dashboard" as dashboard
+
+
+spark_deployment --> kafka_deployment : fetch data
+data_services --> kafka_deployment : push messages
+pyspark_1 --> spark_deployment : triggers data processing
+spark_deployment --> postgres : stores city mood score into
+dashboard --> postgres: visualize data
+@enduml

@@ -1,0 +1,4 @@
+timestamp,city,mood,score
+2025-11-12T10:00:00,Berlin,happy,0.9
+2025-11-12T10:00:05,Hamburg,neutral,0.6
+2025-11-12T10:00:10,Berlin,sad,0.4

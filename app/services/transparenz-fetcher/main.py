@@ -63,15 +63,26 @@ def fetch_transparenz_data():
     logger.info("Transparenz fetch cycle completed.")
 
 def main():
-    logger.info("Transparenz Fetcher started")
-    fetch_transparenz_data()
+
+    logger.info("Traffic Data Fetcher started – waiting for Kafka events")
+
+    Path(INPUT_DIR).mkdir(parents=True, exist_ok=True)
+
+    consumer = KafkaConsumer(
+        "fetch-transparenz",
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        group_id="transparenz-fetcher",
+        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        auto_offset_reset="latest"
+    )
+
+    for message in consumer:
+        event = message.value
+        logger.info(f"Received fetch trigger: {event}")
+        
+        logger.info("Transparenz Fetcher started")
+        fetch_transparenz_data()
     
-    # Alle 4 Stunden
-    schedule.every(4).hours.do(fetch_transparenz_data)
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
 
 if __name__ == "__main__":
     main()

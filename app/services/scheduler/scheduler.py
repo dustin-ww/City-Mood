@@ -6,7 +6,8 @@ from datetime import datetime
 from kafka import KafkaProducer, KafkaAdminClient
 from kafka.admin import NewTopic
 from kafka.errors import TopicAlreadyExistsError
-import config
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logging.getLogger("kafka").setLevel(logging.WARNING)
@@ -27,7 +28,7 @@ RETENTION_MS = 24 * 60 * 60 * 1000
 admin_client = KafkaAdminClient(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
 
 existing_topics = admin_client.list_topics()
-for topic in TOPICS:
+for topic in FETCH_TOPICS:
     if topic not in existing_topics:
         try:
             logger.info(f"Topic '{topic}' does not exist. Creating with 24h retention...")
@@ -51,7 +52,7 @@ producer = KafkaProducer(
 while True:
     timestamp = datetime.now().isoformat()
 
-    for topic in TOPICS:
+    for topic in FETCH_TOPICS:
         event = {
             "type": "FETCH_TRIGGER",
             "topic": topic,

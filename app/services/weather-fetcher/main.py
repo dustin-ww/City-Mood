@@ -113,18 +113,25 @@ def process_weather():
 
 
 def main():
-    logger.info("Weather Fetcher started")
 
-    # run immediately
-    process_weather()
+    logger.info("Weather Fetcher started – waiting for Kafka events")
 
-    # update every 15 minutes (Open-Meteo updates current_weather alle 10min)
-    schedule.every(15).minutes.do(process_weather)
+    Path(INPUT_DIR).mkdir(parents=True, exist_ok=True)
 
-    while True:
-        schedule.run_pending()
-        time.sleep(5)
+    consumer = KafkaConsumer(
+        "fetch-weather",
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        group_id="weather-fetcher",
+        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        auto_offset_reset="latest"
+    )
 
+    for message in consumer:
+        event = message.value
+        logger.info(f"Received fetch trigger: {event}")
+
+        logger.info("Weather Fetcher started")
+        process_weather()
 
 if __name__ == "__main__":
     main()

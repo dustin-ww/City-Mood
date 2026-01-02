@@ -140,7 +140,7 @@ def main():
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         group_id="traffic-fetcher",
         value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-        auto_offset_reset="earliest"
+        auto_offset_reset="latest"
     )
 
     for message in consumer:

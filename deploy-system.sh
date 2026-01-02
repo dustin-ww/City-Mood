@@ -16,7 +16,8 @@ docker build \
   -f /app/services/Dockerfile .
 
 SERVICES=(
-  traffic-fetcher
+  scheduler
+  weather-fetcher
 )
 
 for SERVICE in "${SERVICES[@]}"; do

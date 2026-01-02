@@ -56,7 +56,7 @@ def process_rss_feed(url: str):
 
 
 def main():
-    rss_feed_url = "https://www.ndr.de/nachrichten/hamburg/index~rss2.xml"  # RSS-Feed hier einfügen
+    rss_feed_url = "https://www.ndr.de/nachrichten/hamburg/index~rss2.xml" 
     logger.info("RSS Kafka Fetcher started – waiting for fetch triggers")
 
     """ consumer = KafkaConsumer(

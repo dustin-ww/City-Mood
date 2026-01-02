@@ -6,9 +6,9 @@
   "runArgs": [
     "--network=spark-network"
   ],
-  "workspaceFolder": "/workspace/app",
+  "workspaceFolder": "/workspace/",
   "mounts": [
-    "source=${localWorkspaceFolder}/app,target=/workspace/app,type=bind"
+    "source=${localWorkspaceFolder}/,target=/workspace/,type=bind"
   ],
-  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt"
+  "postCreateCommand": "pip3 install --no-cache-dir -r ./app/requirements.txt"
 }

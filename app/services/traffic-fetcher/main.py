@@ -131,22 +131,24 @@ def fetch_traffic_data():
 
 
 def main():
-    logger.info("Traffic Data Fetcher started")
-    
+    logger.info("Traffic Data Fetcher started – waiting for Kafka events")
+
     Path(INPUT_DIR).mkdir(parents=True, exist_ok=True)
-    
-    fetch_traffic_data()
-    
-    # Schedule for twice daily (e.g., 6:00 and 18:00)
-    schedule.every().day.at("06:00").do(fetch_traffic_data)
-    schedule.every().day.at("18:00").do(fetch_traffic_data)
-    
-    # Optional: Also hourly for real-time traffic data
-    # schedule.every().hour.do(fetch_traffic_data)
-    
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+
+    consumer = KafkaConsumer(
+        "fetch-traffic",
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        group_id="traffic-fetcher",
+        value_deserializer=lambda v: json.loads(v.decode("utf-8")),
+        auto_offset_reset="earliest"
+    )
+
+    for message in consumer:
+        event = message.value
+        logger.info(f"Received fetch trigger: {event}")
+
+        fetch_traffic_data()
+
 
 
 if __name__ == "__main__":

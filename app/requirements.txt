@@ -3,3 +3,7 @@ kafka-python
 pyspark
 requests
 feedparser
+pyspark==3.5.1
+great_expectations
+pandas
+psycopg2-binary

@@ -77,7 +77,7 @@ services:
 
   # Spark Master
   spark-master:
-    image: apache/spark:4.0.1
+    image: apache/spark:3.5.1
     container_name: spark-master
     hostname: spark-master
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
@@ -102,21 +102,21 @@ services:
 
   # Spark Worker
   spark-worker:
-    image: apache/spark:4.0.1
+    image: apache/spark:3.5.1
     container_name: spark-worker
     hostname: spark-worker
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     deploy:
       resources:
         limits:
-          memory: 11G
+          memory: 4G
         reservations:
-          memory: 10G
+          memory: 2G
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=10G
-      - SPARK_WORKER_CORES=6
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
       - SPARK_WORKER_WEBUI_PORT=8081
       - SPARK_PUBLIC_DNS=localhost
     depends_on:
@@ -132,7 +132,7 @@ services:
 
   # PySpark Client
   pyspark:
-    image: spark:4.0.1
+    image: apache/spark:3.5.1
     container_name: pyspark-client
     hostname: pyspark-client
     entrypoint: ["/bin/bash"]
@@ -145,6 +145,7 @@ services:
     volumes:
       - ./app:/opt/spark-apps
       - ./data:/opt/spark-data
+      - ./gx-reports:/app/gx-reports
     networks:
       - spark-network
 

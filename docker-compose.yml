@@ -167,6 +167,18 @@ services:
     networks:
       - spark-network
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: app/services/scheduler/Dockerfile
+    image: city-mood-scheduler
+    networks:
+      - spark-network
+    depends_on:
+      - kafka
+
+  
+
 
 volumes:
   postgres-data:

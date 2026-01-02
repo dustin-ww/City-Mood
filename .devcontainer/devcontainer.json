@@ -7,6 +7,7 @@
     "--network=spark-network"
   ],
   "workspaceFolder": "/workspace/",
+  "remoteUser": "citymooddev",
   "mounts": [
     "source=${localWorkspaceFolder}/,target=/workspace/,type=bind"
   ],

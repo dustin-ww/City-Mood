@@ -7,8 +7,12 @@
     "--network=spark-network"
   ],
   "workspaceFolder": "/workspace/",
+  "remoteUser": "citymooddev",
   "mounts": [
     "source=${localWorkspaceFolder}/,target=/workspace/,type=bind"
   ],
-  "postCreateCommand": "pip3 install --no-cache-dir -r ./app/requirements.txt"
+  "postCreateCommand": "pip3 install --no-cache-dir -r ./app/stream/requirements.txt",
+  "remoteEnv": {
+    "SHELL": "/bin/bash"
+  }
 }

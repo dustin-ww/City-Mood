@@ -6,5 +6,5 @@ WORKDIR /app
 # ENV PYTHONDONTWRITEBYTECODE=1
 # ENV PYTHONUNBUFFERED=1
 
-COPY common/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY ./app/services/requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt

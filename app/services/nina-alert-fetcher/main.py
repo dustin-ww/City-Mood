@@ -6,17 +6,10 @@ import requests
 from datetime import datetime
 from kafka import KafkaProducer, KafkaConsumer
 
-
-# -------------------------------------------------------------------
-# Logging
-# -------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# -------------------------------------------------------------------
-# Configuration
-# -------------------------------------------------------------------
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 TOPIC_TRIGGER = "fetch-public-alerts"
@@ -26,19 +19,12 @@ NINA_DASHBOARD_URL = (
     "https://nina.api.proxy.bund.dev/api31/dashboard/020000000000.json"
 )
 
-
-# -------------------------------------------------------------------
-# Kafka Producer
-# -------------------------------------------------------------------
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
 )
 
 
-# -------------------------------------------------------------------
-# Fetch alerts from NINA
-# -------------------------------------------------------------------
 def fetch_nina_alerts() -> list[dict]:
     logger.info("Fetching public alerts from NINA API ...")
 
@@ -50,10 +36,6 @@ def fetch_nina_alerts() -> list[dict]:
     logger.info(f"Fetched {len(data)} alerts.")
     return data
 
-
-# -------------------------------------------------------------------
-# Send alerts to Kafka
-# -------------------------------------------------------------------
 def send_public_alerts(alerts: list[dict]):
     sent_events = 0
 
@@ -104,9 +86,6 @@ def send_public_alerts(alerts: list[dict]):
     logger.info(f"Sent {sent_events} public alert events.")
 
 
-# -------------------------------------------------------------------
-# Processing pipeline
-# -------------------------------------------------------------------
 def process_public_alerts():
     try:
         logger.info(f"Public alert fetch job started at {datetime.now()}")
@@ -117,9 +96,6 @@ def process_public_alerts():
         logger.error(f"Error during public alert processing: {e}")
 
 
-# -------------------------------------------------------------------
-# Kafka trigger consumer
-# -------------------------------------------------------------------
 def main():
     logger.info("Public Alert Fetcher started – waiting for Kafka trigger")
 
@@ -135,9 +111,5 @@ def main():
         logger.info(f"Received fetch trigger: {message.value}")
         process_public_alerts()
 
-
-# -------------------------------------------------------------------
-# Entrypoint
-# -------------------------------------------------------------------
 if __name__ == "__main__":
     main()

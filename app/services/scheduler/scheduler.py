@@ -7,14 +7,18 @@ from kafka import KafkaProducer, KafkaAdminClient
 from kafka.admin import NewTopic
 from kafka.errors import TopicAlreadyExistsError
 import config
-
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logging.getLogger("kafka").setLevel(logging.WARNING)
 
-KAFKA_BOOTSTRAP_SERVERS = config.KAFKA_BOOTSTRAP_SERVERS
-TOPICS = config.TOPICS
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+FETCH_TOPICS = [
+    "fetch-weather",
+    "fetch-air-pollution",
+    "fetch-traffic",
+    "fetch-news"
+]
+
 
 # 24h retention time for fetch trigger topics
 RETENTION_MS = 24 * 60 * 60 * 1000

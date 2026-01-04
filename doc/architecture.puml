@@ -1,34 +1,135 @@
 @startuml
-package "API Query Services" as data_services {
-component "Traffic API Script" as API_fetch_1
-component "Weather API Script" as API_fetch_2
+!define RECTANGLE_COLOR #E8F4F8
+!define SERVICE_COLOR #B3E5FC
+!define DATA_COLOR #C8E6C9
+!define STREAM_COLOR #FFECB3
+
+skinparam rectangle {
+    BackgroundColor RECTANGLE_COLOR
+    BorderColor #2196F3
 }
 
-package "Kafka Instances" as kafka_deployment {
- [Kafka Instance ] as k_instance_1
+' ===== SCHEDULER =====
+package "Scheduler Service" as scheduler {
+    component "Hourly Trigger" as trigger <<Python>>
 }
 
-package "Spark Instances" as spark_deployment {
- [Spark Master] as s_instance_1
- [Spark Worker (1)] as s_instance_2
+' ===== FETCHER SERVICES =====
+package "Data Fetcher Services" as fetchers {
+    component "Weather Fetcher" as weather <<Open-Meteo>>
+    component "Air Pollution Fetcher" as airpollution <<Open-Meteo>>
+    component "Traffic Fetcher" as traffic <<GeoJSON>>
+    component "Transparenz Fetcher" as transparenz <<Hamburg>>
+    component "NINA Alert Fetcher" as nina <<BBK>>
+    component "Water Level Fetcher" as water <<PegelOnline>>
+    component "NDR News Fetcher" as ndr <<RSS>>
 }
 
-note bottom of spark_deployment
-    Both vertical and horizontal scaling are possible by adding more resources or additional Spark workers.
+' ===== KAFKA =====
+package "Apache Kafka (KRaft)" as kafka_system {
+    collections "Trigger Topics" as trigger_topics
+    collections "Data Topics" as data_topics
+    
+    note right of trigger_topics
+      - fetch-weather
+      - fetch-air-pollution
+      - fetch-traffic
+      - fetch-news
+    end note
+    
+    note right of data_topics
+      - hh-weather-current
+      - hh-air-pollution-current
+      - hh-traffic-data
+      - hh-transparenz-events
+      - hh-public-alerts-current
+      - hh-water-level-current
+      - hh-ndr-news
+    end note
+}
+
+' ===== SPARK CLUSTER =====
+package "Apache Spark Cluster" as spark_cluster {
+    component "Spark Master" as spark_master
+    component "Spark Worker(s)" as spark_worker
+    component "PySpark Streaming Job" as pyspark <<Aggregation + DQ>>
+}
+
+' ===== POSTGRESQL =====
+database "PostgreSQL 16" as postgres {
+    collections "Tables" as pg_tables
+    
+    note right of pg_tables
+      - daily_source_counts
+      - daily_mood_score
+      - cities
+      - mood_aggregates
+    end note
+}
+
+' ===== GRAFANA =====
+component "Grafana Dashboards" as grafana <<Visualization>>
+
+' ===== MONITORING =====
+component "Kafka UI" as kafka_ui <<Monitoring>>
+
+' ===== CONNECTIONS =====
+
+' Scheduler triggers Fetchers via Kafka
+trigger --> trigger_topics : "Sends hourly\ntrigger events"
+trigger_topics --> weather : "fetch-weather"
+trigger_topics --> airpollution : "fetch-air-pollution"
+trigger_topics --> traffic : "fetch-traffic"
+trigger_topics --> transparenz
+trigger_topics --> nina
+trigger_topics --> water
+trigger_topics --> ndr : "fetch-news"
+
+' Fetchers send data to Kafka
+weather --> data_topics : "hh-weather-*"
+airpollution --> data_topics : "hh-air-pollution-*"
+traffic --> data_topics : "hh-traffic-data"
+transparenz --> data_topics : "hh-transparenz-events"
+nina --> data_topics : "hh-public-alerts-*"
+water --> data_topics : "hh-water-level-*"
+ndr --> data_topics : "hh-ndr-news"
+
+' Spark reads from Kafka
+data_topics --> pyspark : "readStream"
+
+' Spark cluster internal
+spark_master --> spark_worker : "Coordinates"
+spark_worker --> pyspark : "Executes"
+
+' Spark writes to Postgres
+pyspark --> postgres : "UPSERT\n(ON CONFLICT)"
+
+' Grafana reads from Postgres
+postgres --> grafana : "SQL Queries"
+
+' Kafka UI monitors Kafka
+kafka_ui --> kafka_system : "Monitors\nTopics & Consumers"
+
+' ===== NOTES =====
+note bottom of spark_cluster
+  **Stream Processing:**
+  - Micro-Batch (10s)
+  - Watermarking (1 day)
+  - GroupBy: day_date, source, category
+  - Data Quality Checks
 end note
 
-note bottom of kafka_deployment
-  Both vertical and horizontal scaling are possible by adding more resources or additional Kafka instances.
+note bottom of postgres
+  **UPSERT Strategy:**
+  INSERT ... ON CONFLICT
+  DO UPDATE
+  → Idempotent writes
 end note
 
-component "City Mood Score - PySpark API Script" as pyspark_1
-component "Postgres" as postgres
-component "Dashboard" as dashboard
+note top of fetchers
+  **7 Independent Microservices**
+  Each with own Docker container
+  Event-Driven via Kafka triggers
+end note
 
-
-spark_deployment --> kafka_deployment : fetch data
-data_services --> kafka_deployment : push messages
-pyspark_1 --> spark_deployment : triggers data processing
-spark_deployment --> postgres : stores city mood score into
-dashboard --> postgres: visualize data
 @enduml

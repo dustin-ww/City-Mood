@@ -190,6 +190,18 @@ services:
     networks:
       - spark-network
 
+  scheduler:
+    image: citymoodmap/city-mood-scheduler
+    build:
+      context: .
+      dockerfile: app/services/scheduler/Dockerfile
+    networks:
+      - spark-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+
 
   # API Fetcher Services
   # fetch-weather:

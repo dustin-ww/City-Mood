@@ -16,15 +16,14 @@ docker build \
   -f ./app/Dockerfile .
 
 SERVICES=(
-  scheduler
-  weather-fetcher
+  weather_fetcher
 )
 
 for SERVICE in "${SERVICES[@]}"; do
   echo "🔨 Building ${SERVICE}..."
-  docker build \
+  docker build --no-cache \
     -t citymoodmap/city-mood-${SERVICE}:latest \
-    -f ./app/services/${SERVICE}/Dockerfile .
+    -f ./app/services/${SERVICE}/Dockerfile . 2>&1 | tee build-output.txt
 done
 
 echo "All images built!"

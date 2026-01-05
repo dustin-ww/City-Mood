@@ -21,3 +21,5 @@ datasources.md
 
 *.pdf
 gx-reports/
+
+build-output.txt

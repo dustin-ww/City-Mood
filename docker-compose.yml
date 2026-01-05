@@ -1,15 +1,15 @@
 version: "3.9"
 
-# x-fetcher-infra: &fetcher-infra
-#   restart: unless-stopped
-#   networks:
-#     - spark-network
-#   depends_on:
-#     kafka:
-#       condition: service_healthy
-#   environment:
-#     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-#     LOG_LEVEL: INFO
+x-fetcher-infra: &fetcher-infra
+  restart: unless-stopped
+  networks:
+    - spark-network
+  depends_on:
+    kafka:
+      condition: service_healthy
+  environment:
+    KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    LOG_LEVEL: INFO
 
 
 services:
@@ -213,16 +213,18 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      fetch-weather:
+        condition: service_started
 
 
 
-# API Fetcher Services
-# fetch-weather:
-#   <<: *fetcher-infra
-#   image: citymoodmap/fetch-weather
-#   container_name: fetch-weather
+ #API Fetcher Services
+  fetch-weather:
+    <<: *fetcher-infra
+    image: citymoodmap/city-mood-weather_fetcher
+    container_name: fetch-weather
     environment:
-      API_REFRESH_INTERVAL_HOURS: "6"  
+      API_REFRESH_INTERVAL_HOURS: "1"  # Fetch weather data every hour
 
   # fetch-traffic:
   #   <<: *fetcher-infra

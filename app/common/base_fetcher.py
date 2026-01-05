@@ -22,7 +22,7 @@ class BaseFetcher:
         raise NotImplementedError()
 
     def run(self):
-        logger.info(f"{self.__class__.__name__} started – waiting for Kafka events on topic {self.topic}")
+        logger.info(f"{self.__class__.__name__} started – waiting for Kafka events on topic {self.wakeup_topic}")
         for msg in self.consumer:
             event = msg.value
             logger.info(f"Received fetch trigger: {event}")

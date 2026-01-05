@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from common.base_fetcher import BaseFetcher
 from common.common_utils import logger, get_kafka_producer, get_redis_client
 import requests
@@ -58,7 +58,7 @@ class WeatherFetcher(BaseFetcher):
         logger.info("Current weather sent.")
 
     def send_daily_weather(self, data: dict):
-        
+
         r = get_redis_client()
         today = date.today()
         last_sent_str = r.get(REDIS_DAILY_KEY)

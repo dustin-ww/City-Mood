@@ -23,7 +23,7 @@ SERVICES=(
 for SERVICE in "${SERVICES[@]}"; do
   echo "🔨 Building ${SERVICE}..."
   docker build \
-    -t city-mood-${SERVICE}:latest \
+    -t citymoodmap/city-mood-${SERVICE}:latest \
     -f ./app/services/${SERVICE}/Dockerfile .
 done
 

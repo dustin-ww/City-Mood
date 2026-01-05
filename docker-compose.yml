@@ -27,7 +27,6 @@ services:
       - "9092:9092"     # internal access
       - "29092:29092"   # external access
     environment:
-
       # ---- KRaft ----
       KAFKA_PROCESS_ROLES: "broker,controller"
       KAFKA_NODE_ID: 1
@@ -57,6 +56,17 @@ services:
       - kafka-data:/var/lib/kafka/data
     networks:
       - spark-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/opt/kafka/bin/kafka-broker-api-versions.sh",
+          "--bootstrap-server",
+          "localhost:9092"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 
   # Kafka UI
@@ -172,14 +182,14 @@ services:
     build:
       context: .
       dockerfile: app/services/scheduler/Dockerfile
-    image: city-mood-scheduler
+    image: citymoodmap/city-mood-scheduler
     networks:
       - spark-network
     depends_on:
-      - kafka
+      kafka:
+        condition: service_healthy
 
   
-
 
 volumes:
   postgres-data:

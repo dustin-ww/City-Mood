@@ -73,6 +73,6 @@ def main():
         process_rss_feed(rss_feed_url)
  """
     process_rss_feed(rss_feed_url)
-
+    logger.info("RSS Kafka Fetcher finished processing.")
 if __name__ == "__main__":
     main()

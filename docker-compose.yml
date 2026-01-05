@@ -1,5 +1,17 @@
 version: "3.9"
 
+# x-fetcher-infra: &fetcher-infra
+#   restart: unless-stopped
+#   networks:
+#     - spark-network
+#   depends_on:
+#     kafka:
+#       condition: service_healthy
+#   environment:
+#     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+#     LOG_LEVEL: INFO
+
+
 services:
   # PostgreSQL Database
   postgres:
@@ -178,18 +190,23 @@ services:
     networks:
       - spark-network
 
-  scheduler:
-    build:
-      context: .
-      dockerfile: app/services/scheduler/Dockerfile
-    image: citymoodmap/city-mood-scheduler
-    networks:
-      - spark-network
-    depends_on:
-      kafka:
-        condition: service_healthy
 
-  
+  # API Fetcher Services
+  # fetch-weather:
+  #   <<: *fetcher-infra
+  #   image: citymoodmap/fetch-weather
+  #   container_name: fetch-weather
+
+  # fetch-traffic:
+  #   <<: *fetcher-infra
+  #   image: citymoodmap/fetch-traffic
+  #   container_name: fetch-traffic
+
+  # fetch-news:
+  #   <<: *fetcher-infra
+  #   image: citymoodmap/fetch-news
+  #   container_name: fetch-news
+
 
 volumes:
   postgres-data:

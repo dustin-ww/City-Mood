@@ -16,6 +16,8 @@ docker build \
   -f ./app/Dockerfile .
 
 SERVICES=(
+  air_pollution_fetcher
+  ndr_news_fetcher
   weather_fetcher
 )
 
@@ -25,7 +27,7 @@ for SERVICE in "${SERVICES[@]}"; do
   echo "🔨 Building ${SERVICE_TAG}..."
   docker build --no-cache \
     -t citymoodmap/city-mood-${SERVICE_TAG}:latest \
-    -f ./app/services/${SERVICE}/Dockerfile . 2>&1 | tee build-output.txt
+    -f ./app/services/${SERVICE}/Dockerfile . 
 done
 
 echo "All images built!"

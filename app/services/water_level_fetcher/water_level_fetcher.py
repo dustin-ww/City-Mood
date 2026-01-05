@@ -3,7 +3,7 @@ from common.base_fetcher import BaseFetcher
 from common.common_utils import logger, get_kafka_producer
 import requests
 
-# SERVICE SPECIFIC CONFIG
+# SERVICE CONFIG
 PEGELONLINE_URL = (
     "https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json"
     "?includeTimeseries=true"
@@ -21,7 +21,6 @@ CURRENT_WATER_LEVEL_TOPIC = "hh-water-level-current"
 class WaterLevelFetcher(BaseFetcher):
 
     def process_message(self, message: dict):
-        """Wird vom BaseFetcher aufgerufen, wenn ein Kafka-Trigger empfangen wird"""
         logger.info("Water level fetch job started")
         try:
             stations = self.fetch_water_level_data()
@@ -29,6 +28,7 @@ class WaterLevelFetcher(BaseFetcher):
             logger.info("Water level fetch job completed")
         except Exception as e:
             logger.error(f"Error during water level fetch: {e}")
+        logger.info("Water level fetch job completed")
 
     def fetch_water_level_data(self) -> list[dict]:
         logger.info("Fetching water level data from PegelOnline ...")

@@ -20,9 +20,11 @@ SERVICES=(
 )
 
 for SERVICE in "${SERVICES[@]}"; do
-  echo "🔨 Building ${SERVICE}..."
+  SERVICE_TAG=${SERVICE//_/-}
+
+  echo "🔨 Building ${SERVICE_TAG}..."
   docker build --no-cache \
-    -t citymoodmap/city-mood-${SERVICE}:latest \
+    -t citymoodmap/city-mood-${SERVICE_TAG}:latest \
     -f ./app/services/${SERVICE}/Dockerfile . 2>&1 | tee build-output.txt
 done
 

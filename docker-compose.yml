@@ -216,11 +216,13 @@ services:
 
 
 
-  # API Fetcher Services
-  # fetch-weather:
-  #   <<: *fetcher-infra
-  #   image: citymoodmap/fetch-weather
-  #   container_name: fetch-weather
+# API Fetcher Services
+# fetch-weather:
+#   <<: *fetcher-infra
+#   image: citymoodmap/fetch-weather
+#   container_name: fetch-weather
+    environment:
+      API_REFRESH_INTERVAL_HOURS: "6"  
 
   # fetch-traffic:
   #   <<: *fetcher-infra

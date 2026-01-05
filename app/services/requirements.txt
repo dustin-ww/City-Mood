@@ -2,3 +2,4 @@ schedule
 kafka-python
 requests
 feedparser
+redis

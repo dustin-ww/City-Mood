@@ -16,14 +16,14 @@ KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 FETCH_TOPICS = [
     "fetch-weather",
-    "fetch-air-pollution",
-    "fetch-traffic",
-    "fetch-news"
+    # "fetch-air-pollution",
+    # "fetch-traffic",
+    # "fetch-news"
 ]
 
 RETENTION_MS = 24 * 60 * 60 * 1000
 
-IMMEDIATE_TRIGGER = os.getenv("SCHEDULER_IMMEDIATE_TRIGGER", "false").lower() == "true"
+IMMEDIATE_TRIGGER = os.getenv("SCHEDULER_IMMEDIATE_TRIGGER", "true").lower() == "true"
 TRIGGER_ON_START = os.getenv("SCHEDULER_TRIGGER_ON_START", "false").lower() == "true"
 
 

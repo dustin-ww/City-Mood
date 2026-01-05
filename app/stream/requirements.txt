@@ -7,3 +7,4 @@ pyspark==3.5.1
 great_expectations
 pandas
 psycopg2-binary
+redis

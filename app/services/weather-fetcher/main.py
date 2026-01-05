@@ -3,16 +3,17 @@ import json
 import time
 import schedule
 import requests
-from kafka import KafkaProducer
+from kafka import KafkaProducer, KafkaConsumer
 from datetime import datetime
+from pathlib import Path
+
+
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# -------------------------
-# CONFIG
-# -------------------------
+
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 TOPIC_CURRENT = "hh-weather-current" 
@@ -31,9 +32,7 @@ OPEN_METEO_URL = (
     "temperature_2m_min,apparent_temperature_max,apparent_temperature_min"
 )
 
-# -------------------------
 # Kafka Producer
-# -------------------------
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
@@ -115,8 +114,6 @@ def process_weather():
 def main():
 
     logger.info("Weather Fetcher started – waiting for Kafka events")
-
-    Path(INPUT_DIR).mkdir(parents=True, exist_ok=True)
 
     consumer = KafkaConsumer(
         "fetch-weather",

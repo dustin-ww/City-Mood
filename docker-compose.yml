@@ -190,6 +190,19 @@ services:
     networks:
       - spark-network
 
+  # Redis to store hold fetch timestamps to eliminate duplicate data in kafka
+  redis:
+    image: redis:8.4.0-alpine
+    container_name: redis
+    hostname: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - spark-network
+    restart: unless-stopped
+
   scheduler:
     image: citymoodmap/city-mood-scheduler
     build:
@@ -224,6 +237,7 @@ volumes:
   postgres-data:
   kafka-data:
   grafana-data:
+  redis-data:
 
 networks:
   spark-network:

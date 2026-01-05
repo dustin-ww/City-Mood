@@ -19,6 +19,7 @@ OPEN_METEO_URL = (
 CURRENT_WEATHER_TOPIC = "hh-weather-current"
 DAILY_WEATHER_TOPIC = "hh-weather-daily"
 
+REDIS_DAILY_KEY = "weather:daily:last_sent"
 
 class WeatherFetcher(BaseFetcher):
 
@@ -57,6 +58,16 @@ class WeatherFetcher(BaseFetcher):
         logger.info("Current weather sent.")
 
     def send_daily_weather(self, data: dict):
+        
+        r = get_redis_client()
+        today = date.today()
+        last_sent_str = r.get(REDIS_DAILY_KEY)
+        last_sent = date.fromisoformat(last_sent_str) if last_sent_str else None
+
+        if last_sent == today:
+            logger.info("Daily weather already sent today. Skipping...")
+            return
+
         producer = get_kafka_producer()
         event = {
             "fetch_timestamp": datetime.utcnow().isoformat(),

@@ -80,6 +80,13 @@ services:
       timeout: 5s
       retries: 10
 
+  # prometheus:
+  #   image: prom/prometheus:v3.8.1
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus:/etc/prometheus
+
 
   # Kafka UI
   kafka-ui:

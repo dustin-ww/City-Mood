@@ -95,9 +95,7 @@ class RssFetcher(BaseFetcher):
             "headline_sentiment": sentiment,
         }
 
-    # ----------------------
     # Process Single Feed
-    # ----------------------
     def process_single_feed(self, feed_cfg: dict):
         last_fetch = get_last_timestamp(feed_cfg["redis_last_fetch"])
         interval = get_fetch_interval()

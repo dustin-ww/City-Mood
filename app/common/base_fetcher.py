@@ -14,8 +14,9 @@ class BaseFetcher:
             self.wakeup_topic,
             bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
             group_id=self.group_id,
-            value_deserializer=lambda v: json.loads(v.decode("utf-8")),
-            auto_offset_reset="latest"
+            value_deserializer=lambda v: json.loads(v.decode("utf-8")),   
+            auto_offset_reset="latest",
+            enable_auto_commit=False, # do not auto-commit offsets (to prohibit execution of missed events on restart)
         )
 
     def process_message(self, message: dict):

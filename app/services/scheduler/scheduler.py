@@ -15,11 +15,16 @@ logging.getLogger("kafka").setLevel(logging.WARNING)
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 FETCH_TOPICS = [
-    #"fetch-weather",
+    "fetch-weather",
     "fetch-traffic",
-    # "fetch-air-pollution",
-    # "fetch-traffic",
-    # "fetch-news"
+    "fetch-air-pollution",
+    "fetch-bbc-rss",
+    "fetch-nyt-rss",
+    "fetch-public-alerts",
+    "fetch-traffic",
+    "fetch-street-construction",
+    "fetch-transparenz",
+    "fetch-water-levels",
 ]
 
 RETENTION_MS = 24 * 60 * 60 * 1000

@@ -16,6 +16,15 @@ docker build \
   -f ./app/Dockerfile .
 
 SERVICES=(
+  scheduler
+  air_pollution_fetcher
+  bbc_news_fetcher
+  nina_alert_fetcher
+  street_construction_fetcher
+  traffic_fetcher
+  transparenz_fetcher
+  water_level_fetcher
+  weather_fetcher
   nyt_news_fetcher
 )
 

@@ -39,18 +39,18 @@ def get_redis_client():
         return _redis
 
 # Fetch Interval
-DEFAULT_FETCH_INTERVAL_HOURS = float(os.getenv("API_REFRESH_INTERVAL_HOURS", 3))
-DEFAULT_FETCH_INTERVAL = int(DEFAULT_FETCH_INTERVAL_HOURS * 3600)
+FETCH_INTERVAL_HOURS = float(os.getenv("API_REFRESH_INTERVAL_HOURS", 3))
+FETCH_INTERVAL = int(FETCH_INTERVAL_HOURS * 3600)
 
 def get_fetch_interval(redis_key: str = "rss:fetch_interval") -> int:
-    r = get_redis_client()
-    val = r.get(redis_key)
-    if val:
-        try:
-            return int(val)
-        except ValueError:
-            logger.warning(f"Invalid fetch_interval in Redis: {val}, using ENV default")
-    return DEFAULT_FETCH_INTERVAL
+    # r = get_redis_client()
+    # val = r.get(redis_key)
+    # if val:
+    #     try:
+    #         return int(val)
+    #     except ValueError:
+    #         logger.warning(f"Invalid fetch_interval in Redis: {val}, using ENV default")
+    return FETCH_INTERVAL
 
 # Redis Helpers
 def is_duplicate(key_set: str, entry_id: str) -> bool:

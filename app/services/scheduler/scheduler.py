@@ -15,7 +15,8 @@ logging.getLogger("kafka").setLevel(logging.WARNING)
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 FETCH_TOPICS = [
-    "fetch-weather",
+    #"fetch-weather",
+    "fetch-traffic",
     # "fetch-air-pollution",
     # "fetch-traffic",
     # "fetch-news"

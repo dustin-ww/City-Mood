@@ -1,5 +1,5 @@
 {
-  "name": "Python PySpark Dev",
+  "name": "City Mood Map DevContainer",
   "build": {
     "dockerfile": "Dockerfile"
   },

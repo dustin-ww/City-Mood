@@ -16,9 +16,7 @@ docker build \
   -f ./app/Dockerfile .
 
 SERVICES=(
-  air_pollution_fetcher
-  ndr_news_fetcher
-  weather_fetcher
+  nyt_news_fetcher
 )
 
 for SERVICE in "${SERVICES[@]}"; do

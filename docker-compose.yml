@@ -220,18 +220,18 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-      fetch-weather:
-        condition: service_started
+      # fetch-weather:
+      #   condition: service_started
 
 
 
  #API Fetcher Services
-  fetch-weather:
-    <<: *fetcher-infra
-    image: citymoodmap/city-mood-weather_fetcher
-    container_name: fetch-weather
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "1"  # Fetch weather data every hour
+  # fetch-weather:
+  #   <<: *fetcher-infra
+  #   image: citymoodmap/city-mood-weather_fetcher
+  #   container_name: fetch-weather
+  #   environment:
+  #     API_REFRESH_INTERVAL_HOURS: "1"  # Fetch weather data every hour
 
   # fetch-traffic:
   #   <<: *fetcher-infra

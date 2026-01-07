@@ -1,98 +1,150 @@
-from datetime import datetime
-from pathlib import Path
-from common.base_fetcher import BaseFetcher
-from common.common_utils import logger, get_kafka_producer
+from datetime import datetime, timedelta
+from typing import Dict, Any, List
+import io
 import json
 import zipfile
-from typing import List, Dict, Any
+import requests
+
+from common.base_fetcher import BaseFetcher
+from common.common_utils import (
+    logger,
+    get_kafka_producer,
+    get_last_timestamp,
+    set_last_timestamp,
+)
 
 # SERVICE CONFIG
-INPUT_DIR = './../../data/traffic_hh'
-KAFKA_TOPIC = 'hh-traffic-data'
+
+TRAFFIC_ZIP_URL = (
+    "https://geodienste.hamburg.de/download"
+    "?url=https://geodienste.hamburg.de/wfs_hh_verkehrslage"
+    "&f=json"
+)
+
+KAFKA_TOPIC = "hh-traffic-data"
+
+REDIS_LAST_FETCH_KEY = "traffic:last_fetch"
+FETCH_INTERVAL = timedelta(hours=12)
 
 
 class TrafficFetcher(BaseFetcher):
 
     def process_message(self, message: dict):
-        logger.info("Traffic data fetch job started")
-        self.fetch_traffic_data()
-        logger.info("Traffic data fetch job completed")
+        logger.info("Traffic fetch job started")
+        self.process_traffic_data()
+        logger.info("Traffic fetch job completed")
 
-    def load_local_geojson(self, file_path: str) -> List[Dict[str, Any]]:
-        """Extract features from a ZIP file containing GeoJSON"""
-        try:
-            logger.info(f"Loading zip file from: {file_path}")
-            features = []
+    # =========================
+    # FETCH
+    # =========================
 
-            with zipfile.ZipFile(file_path, 'r') as zip_file:
-                for file_name in zip_file.namelist():
-                    if file_name.endswith('.geojson') or file_name.endswith('.json'):
-                        logger.info(f"Processing file: {file_name}")
-                        with zip_file.open(file_name) as json_file:
-                            data = json.load(json_file)
-                            if data.get('type') == 'FeatureCollection':
-                                features.extend(data.get('features', []))
-                            elif data.get('type') == 'Feature':
-                                features.append(data)
+    def fetch_zip(self) -> bytes:
+        logger.info("Downloading traffic ZIP file from Hamburg GeoServices …")
+        resp = requests.get(TRAFFIC_ZIP_URL, timeout=60)
+        resp.raise_for_status()
+        logger.info(f"Downloaded {len(resp.content) / 1024:.1f} KB ZIP archive")
+        return resp.content
 
-            logger.info(f"{len(features)} features extracted from {file_path}")
-            return features
+    # =========================
+    # PARSE
+    # =========================
 
-        except Exception as e:
-            logger.error(f"Error loading {file_path}: {e}")
-            return []
+    def extract_features_from_zip(self, zip_bytes: bytes) -> List[Dict[str, Any]]:
+        features: List[Dict[str, Any]] = []
 
-    def send_features_to_kafka(self, features: List[Dict[str, Any]], source_file: str):
-        """Send individual GeoJSON features to Kafka"""
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            json_files = [
+                name for name in zf.namelist()
+                if name.endswith(".json") or name.endswith(".geojson")
+            ]
+
+            logger.info(f"Found {len(json_files)} JSON files in ZIP")
+
+            for file_name in json_files:
+                logger.info(f"Parsing {file_name}")
+                with zf.open(file_name) as f:
+                    data = json.load(f)
+
+                    if data.get("type") != "FeatureCollection":
+                        logger.warning(f"Skipping {file_name} (not a FeatureCollection)")
+                        continue
+
+                    file_features = data.get("features", [])
+                    logger.info(f" → {len(file_features)} features")
+                    features.extend(file_features)
+
+        logger.info(f"Extracted total {len(features)} traffic features")
+        return features
+
+    # =========================
+    # KAFKA
+    # =========================
+
+    def send_features_to_kafka(self, features: List[Dict[str, Any]]):
         producer = get_kafka_producer()
         fetch_timestamp = datetime.utcnow().isoformat()
+        sent = 0
 
         for idx, feature in enumerate(features):
             try:
-                message = {
-                    'fetch_timestamp': fetch_timestamp,
-                    'source': source_file,
-                    'feature_index': idx,
-                    'feature': feature
+                event = {
+                    "fetch_timestamp": fetch_timestamp,
+                    "source": "hh_verkehrslage",
+                    "type": "traffic_state",
+                    "feature_id": feature.get("id"),
+                    #"geometry_type": feature.get("geometry", {}).get("type"),
+                    "properties": feature.get("properties", {}),
+                   # "geometry": feature.get("geometry"),
+                    "srsName": feature.get("srsName"),
                 }
-                producer.send(KAFKA_TOPIC, value=message)
-                if (idx + 1) % 100 == 0:
-                    logger.info(f"{idx + 1}/{len(features)} features sent")
+
+                producer.send(KAFKA_TOPIC, value=event)
+                sent += 1
+
+                if sent % 500 == 0:
+                    logger.info(f"{sent}/{len(features)} features sent")
+
             except Exception as e:
-                logger.error(f"Error sending feature {idx}: {e}")
+                logger.error(f"Kafka send failed for feature {idx}: {e}")
 
         producer.flush()
-        logger.info(f"All {len(features)} features sent to Kafka")
+        logger.info(f"Sent {sent} traffic events to Kafka")
 
-    def fetch_traffic_data(self):
-        """Load traffic data from local ZIP files and send to Kafka"""
+    # =========================
+    # ORCHESTRATION
+    # =========================
+
+    def process_traffic_data(self):
+        last_fetch = get_last_timestamp(REDIS_LAST_FETCH_KEY)
+        now = datetime.utcnow()
+
+        if last_fetch and (now - last_fetch) < FETCH_INTERVAL:
+            remaining = FETCH_INTERVAL - (now - last_fetch)
+            logger.info(
+                f"Skipping traffic fetch – next run in "
+                f"{remaining.total_seconds() / 3600:.2f}h"
+            )
+            return
+
         try:
-            logger.info(f"Starting traffic data fetch at {datetime.utcnow()}")
-            input_path = Path(INPUT_DIR)
-            if not input_path.exists():
-                logger.error(f"Input directory {INPUT_DIR} does not exist!")
+            zip_bytes = self.fetch_zip()
+            features = self.extract_features_from_zip(zip_bytes)
+
+            if not features:
+                logger.warning("No traffic features extracted")
                 return
 
-            zip_files = list(input_path.glob('*.zip'))
-            if not zip_files:
-                logger.warning(f"No ZIP files found in {INPUT_DIR}")
-                return
-
-            total_features = 0
-            for zip_file in zip_files:
-                features = self.load_local_geojson(str(zip_file))
-                if features:
-                    self.send_features_to_kafka(features, str(zip_file))
-                    total_features += len(features)
-                else:
-                    logger.warning(f"No features found in {zip_file}")
-
-            logger.info(f"Traffic data fetch completed. Total: {total_features} features")
+            self.send_features_to_kafka(features)
+            set_last_timestamp(REDIS_LAST_FETCH_KEY, now)
+            logger.info("Traffic fetch cycle completed successfully")
 
         except Exception as e:
-            logger.error(f"Error during traffic data fetch: {e}")
+            logger.error(f"Traffic fetch failed: {e}")
 
 
 if __name__ == "__main__":
-    fetcher = TrafficFetcher(wakeup_topic="fetch-traffic", group_id="traffic-fetcher")
+    fetcher = TrafficFetcher(
+        wakeup_topic="fetch-traffic",
+        group_id="traffic-fetcher",
+    )
     fetcher.run()

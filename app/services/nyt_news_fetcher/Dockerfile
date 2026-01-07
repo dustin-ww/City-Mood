@@ -7,9 +7,9 @@ LABEL org.opencontainers.image.description="New York Times News Fetcher Service"
 WORKDIR /app
 
 COPY app/common ./common
-COPY app/services/ndr_news_fetcher ./services/ndr_news_fetcher
+COPY app/services/nyt_news_fetcher ./services/nyt_news_fetcher
 
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r ./services/nyt_news_fetcher/requirements.txt
 
 ENV PYTHONPATH=/app
 

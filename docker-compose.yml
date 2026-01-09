@@ -135,17 +135,11 @@ services:
     container_name: spark-worker
     hostname: spark-worker
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
-    deploy:
-      resources:
-        limits:
-          memory: 4G
-        reservations:
-          memory: 2G
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark-master:7077
-      - SPARK_WORKER_MEMORY=2G
-      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=10G
+      - SPARK_WORKER_CORES=6
       - SPARK_WORKER_WEBUI_PORT=8081
       - SPARK_PUBLIC_DNS=localhost
     depends_on:
@@ -158,6 +152,12 @@ services:
       - ./spark-logs:/opt/spark/logs
     networks:
       - spark-network
+    deploy:
+      resources:
+        limits:
+          cpus: '6'
+          memory: 10G
+
 
   # PySpark Client
   pyspark:
@@ -167,6 +167,12 @@ services:
     entrypoint: ["/bin/bash"]
     stdin_open: true
     tty: true
+    environment:
+      # KRITISCH: Driver Memory!
+      - SPARK_DRIVER_MEMORY=6G
+      - SPARK_EXECUTOR_MEMORY=10G
+      - PYSPARK_DRIVER_PYTHON=python3
+      - PYSPARK_PYTHON=python3
     depends_on:
       - spark-master
       - postgres
@@ -177,6 +183,11 @@ services:
       - ./gx-reports:/app/gx-reports
     networks:
       - spark-network
+    deploy:
+      resources:
+        limits:
+          cpus: '6'
+          memory: 10G
 
   grafana:
     image: grafana/grafana:latest

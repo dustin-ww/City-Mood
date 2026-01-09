@@ -18,9 +18,7 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ============================================================================
-# 1. SPARK SESSION
-# ============================================================================
+# Spark Session Init
 spark = SparkSession.builder \
     .appName("CityMoodPipeline") \
     .master("spark://spark-master:7077") \
@@ -28,13 +26,13 @@ spark = SparkSession.builder \
             "org.postgresql:postgresql:42.7.8,"
             "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1") \
     .config("spark.sql.streaming.statefulOperator.checkCorrectness.enabled", "false") \
+    .config("spark.executor.memory", "10g") \       
+    .config("spark.executor.cores", "6") \   
     .getOrCreate()
 
-# ============================================================================
-# 2. SCHEMAS FÜR ALLE KAFKA TOPICS
-# ============================================================================
+# Schemes for all Kafka Topcis 
 
-# News Schema (BBC, NYT)
+# News Scheme (BBC, NYT)
 news_schema = StructType([
     StructField("source", StringType(), True),
     StructField("section", StringType(), True),
@@ -46,7 +44,7 @@ news_schema = StructType([
     ]), True)
 ])
 
-# Air Quality Schema
+# Air Quality Scheme
 air_schema = StructType([
     StructField("fetch_timestamp", StringType(), True),
     StructField("source", StringType(), True),
@@ -57,7 +55,7 @@ air_schema = StructType([
     ]), True)
 ])
 
-# Weather Schema
+# Weather Scheme
 weather_schema = StructType([
     StructField("fetch_timestamp", StringType(), True),
     StructField("source", StringType(), True),
@@ -70,7 +68,7 @@ weather_schema = StructType([
     ]), True)
 ])
 
-# Traffic Schema
+# Traffic Scheme
 traffic_schema = StructType([
     StructField("fetch_timestamp", StringType(), True),
     StructField("source", StringType(), True),
@@ -80,7 +78,7 @@ traffic_schema = StructType([
     ]), True)
 ])
 
-# Public Alerts Schema
+# Public Alerts Scheme
 alerts_schema = StructType([
     StructField("fetch_timestamp", StringType(), True),
     StructField("source", StringType(), True),
@@ -91,7 +89,7 @@ alerts_schema = StructType([
     ]), True)
 ])
 
-# Construction Schema
+# Construction Scheme
 construction_schema = StructType([
     StructField("fetch_timestamp", StringType(), True),
     StructField("source", StringType(), True),
@@ -101,7 +99,7 @@ construction_schema = StructType([
     ]), True)
 ])
 
-# Water Level Schema
+# Water Level Scheme
 water_schema = StructType([
     StructField("fetch_timestamp", StringType(), True),
     StructField("source", StringType(), True),
@@ -113,7 +111,7 @@ water_schema = StructType([
     ]), True)
 ])
 
-# Events Schema
+# Events Scheme
 events_schema = StructType([
     StructField("source", StringType(), True),
     StructField("fetch_timestamp", StringType(), True),
@@ -121,12 +119,9 @@ events_schema = StructType([
     StructField("category", ArrayType(StringType()), True)
 ])
 
-# ============================================================================
-# 3. KAFKA STREAMS LESEN UND PARSEN
-# ============================================================================
+# Read kafka streams and parse
 
 def read_kafka_stream(topic, schema):
-    """Generische Funktion zum Lesen von Kafka Streams"""
     return spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", "kafka:9092") \
@@ -143,10 +138,10 @@ df_bbc = read_kafka_stream("bbc-europe-news", news_schema)
 df_nyt_europe = read_kafka_stream("nyt-europe-news", news_schema)
 df_nyt_world = read_kafka_stream("nyt-world-news", news_schema)
 
-# Alle News kombinieren
+# Combine all news streams
 df_news_all = df_bbc.union(df_nyt_europe).union(df_nyt_world)
 
-# News Score berechnen
+# Calculate news score 
 df_news_scored = df_news_all.withColumn(
     "news_sentiment_score",
     when(col("headline_sentiment.label") == "POSITIVE", col("headline_sentiment.score"))
@@ -255,13 +250,11 @@ df_water_scored = df_water \
         .otherwise(lit(0.5))
     )
 
-# Events Stream (für Event-Counts)
+# Events Stream (for Event counts)
 logger.info("Setting up EVENTS stream...")
 df_events = read_kafka_stream("hh-kultur-events,hh-transparenz-events", events_schema)
 
-# ============================================================================
-# 4. AGGREGATIONEN MIT ZEITFENSTERN
-# ============================================================================
+# Aggregation of streams with time windows
 
 # News: 30-Minuten Fenster, 5-Minuten Slide
 news_agg = df_news_scored \
@@ -337,9 +330,7 @@ water_agg = df_water_scored \
         avg("measurement.value_cm").alias("avg_water_level")
     )
 
-# ============================================================================
-# 5. CITY MOOD SCORE ZUSAMMENFÜHREN
-# ============================================================================
+# Combine all scores into CITY MOOD SCORE
 
 logger.info("Combining all scores into CITY MOOD SCORE...")
 
@@ -391,10 +382,7 @@ city_mood_final = city_mood.select(
     "computed_at", current_timestamp()
 )
 
-# ============================================================================
-# 6. DATA QUALITY CHECKS MIT GREAT EXPECTATIONS
-# ============================================================================
-
+#  Data quality validation with great expectations
 def validate_city_mood_quality(pdf, batch_id):
     """
     Data Quality Checks für City Mood Score
@@ -466,10 +454,7 @@ def validate_city_mood_quality(pdf, batch_id):
         }
     }
 
-# ============================================================================
-# 7. WRITE TO POSTGRES MIT QUALITY REPORTING
-# ============================================================================
-
+# Write to postgres with data quality checks and reports
 def write_city_mood_to_postgres(batch_df, batch_id):
     """
     Schreibt City Mood Score in Postgres und erstellt Quality Reports
@@ -481,14 +466,13 @@ def write_city_mood_to_postgres(batch_df, batch_id):
     logger.info(f"⚙️ Processing Batch {batch_id}...")
     
     try:
-        # Konvertiere zu Pandas für Quality Checks
         pdf = batch_df.toPandas()
         
         # DATA QUALITY VALIDATION
         validation_result = validate_city_mood_quality(pdf, batch_id)
         
         # Log Results
-        logger.info(f"📊 Batch {batch_id} Status: {validation_result['status']}")
+        logger.info(f"Batch {batch_id} Status: {validation_result['status']}")
         
         if validation_result['issues']:
             for issue in validation_result['issues']:
@@ -498,11 +482,9 @@ def write_city_mood_to_postgres(batch_df, batch_id):
             for warning in validation_result['warnings']:
                 logger.warning(warning)
         
-        logger.info(f"✅ Avg City Mood Score: {validation_result['metrics']['avg_city_mood']:.3f}")
+        logger.info(f"Avg City Mood Score: {validation_result['metrics']['avg_city_mood']:.3f}")
         
-        # ========================================================================
         # JSON REPORT
-        # ========================================================================
         os.makedirs("/app/gx-reports", exist_ok=True)
         report_path = f"/app/gx-reports/city_mood_batch_{batch_id}.json"
         
@@ -516,11 +498,9 @@ def write_city_mood_to_postgres(batch_df, batch_id):
         with open(report_path, "w", encoding="utf-8") as f:
             json.dump(report_data, f, indent=2, default=str)
         
-        logger.info(f"📄 JSON Report: {report_path}")
+        logger.info(f"JSON Report: {report_path}")
         
-        # ========================================================================
         # HTML REPORT
-        # ========================================================================
         html_path = f"/app/gx-reports/city_mood_batch_{batch_id}.html"
         
         status_class = "ok" if validation_result["status"] == "PASSED" else "bad"
@@ -629,11 +609,9 @@ def write_city_mood_to_postgres(batch_df, batch_id):
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
         
-        logger.info(f"📄 HTML Report: {html_path}")
+        logger.info(f"HTML Report: {html_path}")
         
-        # ========================================================================
-        # WRITE TO POSTGRES
-        # ========================================================================
+        # Write to Postgres
         if validation_result["status"] == "PASSED" or len(validation_result["issues"]) == 0:
             rows = []
             for _, row in pdf.iterrows():
@@ -662,7 +640,6 @@ def write_city_mood_to_postgres(batch_df, batch_id):
                 conn.autocommit = True
                 
                 with conn.cursor() as cur:
-                    # Tabelle erstellen falls nicht vorhanden
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS city_mood_scores (
                             window_start TIMESTAMP NOT NULL,
@@ -681,7 +658,6 @@ def write_city_mood_to_postgres(batch_df, batch_id):
                         );
                     """)
                     
-                    # Daten einfügen
                     sql = """
                         INSERT INTO city_mood_scores 
                         (window_start, window_end, city_mood_score, news_score, air_score, 
@@ -711,9 +687,7 @@ def write_city_mood_to_postgres(batch_df, batch_id):
     except Exception as e:
         logger.error(f"❌ Fehler in Batch {batch_id}: {str(e)}", exc_info=True)
 
-# ============================================================================
-# 8. STREAM STARTEN
-# ============================================================================
+# 8. Start Stream
 
 import pandas as pd
 

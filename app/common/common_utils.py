@@ -39,10 +39,10 @@ def get_redis_client():
         return _redis
 
 # Fetch Interval
-FETCH_INTERVAL_HOURS = float(os.getenv("API_REFRESH_INTERVAL_HOURS", 3))
+FETCH_INTERVAL_HOURS = float(os.getenv("API_REFRESH_INTERVAL_HOURS", 1))
 FETCH_INTERVAL = int(FETCH_INTERVAL_HOURS * 3600)
 
-def get_fetch_interval(redis_key: str = "rss:fetch_interval") -> int:
+def get_fetch_interval() -> int:
     # r = get_redis_client()
     # val = r.get(redis_key)
     # if val:

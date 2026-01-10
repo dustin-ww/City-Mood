@@ -1,9 +1,12 @@
+import os
 from datetime import datetime
 from common.base_fetcher import BaseFetcher
-from common.common_utils import logger, get_kafka_producer
+from common.common_utils import logger, get_kafka_producer, get_fetch_interval, get_last_timestamp, set_last_timestamp
 import requests
 
+# =========================
 # SERVICE CONFIG
+# =========================
 PEGELONLINE_URL = (
     "https://www.pegelonline.wsv.de/webservices/rest-api/v2/stations.json"
     "?includeTimeseries=true"
@@ -16,19 +19,32 @@ PEGELONLINE_URL = (
     "&radius=10"
 )
 CURRENT_WATER_LEVEL_TOPIC = "hh-water-level-current"
-
+REDIS_LAST_FETCH_KEY = "water-level:last_fetch"
 
 class WaterLevelFetcher(BaseFetcher):
 
     def process_message(self, message: dict):
         logger.info("Water level fetch job started")
+        self.process_water_level_data()
+        logger.info("Water level fetch job completed")
+
+    def process_water_level_data(self):
+        now = datetime.utcnow()
+        last_fetch = get_last_timestamp(REDIS_LAST_FETCH_KEY)
+        interval = get_fetch_interval()
+
+        if last_fetch and (now - last_fetch).total_seconds() < interval:
+            remaining = interval - (now - last_fetch).total_seconds()
+            logger.info(f"Skipping water level fetch – next run in {remaining/3600:.2f}h")
+            return
+
         try:
             stations = self.fetch_water_level_data()
             self.send_current_water_levels(stations)
-            logger.info("Water level fetch job completed")
+            set_last_timestamp(REDIS_LAST_FETCH_KEY, now)
+            logger.info("Water level fetch cycle completed successfully")
         except Exception as e:
             logger.error(f"Error during water level fetch: {e}")
-        logger.info("Water level fetch job completed")
 
     def fetch_water_level_data(self) -> list[dict]:
         logger.info("Fetching water level data from PegelOnline ...")
@@ -49,7 +65,7 @@ class WaterLevelFetcher(BaseFetcher):
                     continue
 
                 event = {
-                    "fetch_timestamp": datetime.utcnow().isoformat(),
+                    "fetch_timestamp": datetime.utcnow().isoformat() + "Z",
                     "source": "pegelonline",
                     "type": "current_water_level",
                     "station": {

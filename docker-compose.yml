@@ -258,7 +258,7 @@ services:
     image: citymoodmap/city-mood-air-pollution-fetcher
     container_name: city-mood-air-pollution-fetcher
     environment:
-      API_REFRESH_INTERVAL_HOURS: "1"
+      API_REFRESH_INTERVAL_HOURS: "0.25"  # Fetch air pollution data every 15 minutes
 
   cmm-bbc-news-fetcher:
     <<: *fetcher-infra

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, List
 import requests
 
@@ -6,6 +6,7 @@ from common.base_fetcher import BaseFetcher
 from common.common_utils import (
     logger,
     get_kafka_producer,
+    get_fetch_interval,
     get_last_timestamp,
     set_last_timestamp,
 )
@@ -18,9 +19,7 @@ STREET_CONSTRUCTION_API_URL = (
 )
 
 KAFKA_TOPIC = "hh-street-construction"
-
 REDIS_LAST_FETCH_KEY = "street-construction:last_fetch"
-FETCH_INTERVAL = timedelta(hours=6)
 
 
 class StreetConstructionFetcher(BaseFetcher):
@@ -29,7 +28,6 @@ class StreetConstructionFetcher(BaseFetcher):
         logger.info("Street construction fetch job started")
         self.process_street_constructions()
         logger.info("Street construction fetch job completed")
-
 
     def fetch_data(self) -> Dict[str, Any]:
         logger.info("Fetching street construction data from Hamburg API …")
@@ -47,7 +45,7 @@ class StreetConstructionFetcher(BaseFetcher):
 
     def send_features_to_kafka(self, features: List[Dict[str, Any]]):
         producer = get_kafka_producer()
-        fetch_ts = datetime.utcnow().isoformat()
+        fetch_ts = datetime.utcnow().isoformat() + "Z"
         sent = 0
 
         for feature in features:
@@ -90,19 +88,20 @@ class StreetConstructionFetcher(BaseFetcher):
         producer.flush()
         logger.info(f"Sent {sent} street construction events to Kafka")
 
-
-
     def process_street_constructions(self):
+        now = datetime.now(datetime.timezone.utc)
+        interval = get_fetch_interval()  # Sekunden
         last_fetch = get_last_timestamp(REDIS_LAST_FETCH_KEY)
-        now = datetime.utcnow()
 
-        if last_fetch and (now - last_fetch) < FETCH_INTERVAL:
-            remaining = FETCH_INTERVAL - (now - last_fetch)
-            logger.info(
-                f"Skipping street construction fetch – next run in "
-                f"{remaining.total_seconds() / 3600:.2f}h"
-            )
-            return
+        if last_fetch:
+            elapsed = (now - last_fetch).total_seconds()
+            if elapsed < interval:
+                remaining = interval - elapsed
+                logger.info(
+                    f"Skipping street construction fetch – next run in "
+                    f"{remaining / 3600:.2f}h"
+                )
+                return
 
         try:
             data = self.fetch_data()
@@ -114,6 +113,7 @@ class StreetConstructionFetcher(BaseFetcher):
 
             self.send_features_to_kafka(features)
             set_last_timestamp(REDIS_LAST_FETCH_KEY, now)
+
             logger.info("Street construction fetch cycle completed")
 
         except Exception as e:

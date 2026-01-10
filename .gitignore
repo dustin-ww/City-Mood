@@ -23,3 +23,5 @@ datasources.md
 gx-reports/
 
 build-output.txt
+
+/app/stream/experimental/

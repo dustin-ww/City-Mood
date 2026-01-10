@@ -22,8 +22,8 @@ services:
       POSTGRES_USER: spark
       POSTGRES_PASSWORD: spark
       POSTGRES_DB: city_mood
-    # ports:
-    #   - "5432:5432"
+    ports:
+      - "127.0.0.1:5432:5432"
     volumes:
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
       - postgres-data:/var/lib/postgresql/data

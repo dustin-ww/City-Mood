@@ -9,7 +9,7 @@ from pyspark.sql.types import (
 )
 import psycopg2
 from psycopg2.extras import execute_values
-from datetime import datetime
+from datetime import datetime, timezone
 import pandas as pd
 import great_expectations as gx
 from great_expectations.core.expectation_suite import ExpectationSuite
@@ -51,9 +51,9 @@ spark.sparkContext.setLogLevel("WARN")
 
 # CONFIGURATION
 KAFKA_BOOTSTRAP = "kafka:9092"
-CHECKPOINT_DIR = "/tmp/spark-checkpoint/city-mood-union-modev5"
-WINDOW_DURATION = "2 minutes"
-WATERMARK_DELAY = "10 seconds"
+CHECKPOINT_DIR = "/tmp/spark-checkpoint/city-mood-union-modev7"
+WINDOW_DURATION = "1 hour"
+WATERMARK_DELAY = "2 minutes"
 TRIGGER_INTERVAL = "20 seconds"
 
 PG_CONFIG = {
@@ -1272,7 +1272,7 @@ def write_to_postgres(batch_df, batch_id):
                     float(row["avg_temp"]) if not pd.isna(row["avg_temp"]) else None,
                     float(row["avg_water_level"]) if not pd.isna(row["avg_water_level"]) else None,
                     row["computed_at"],
-                    datetime.utcnow()
+                    datetime.now(timezone.utc)
                 ))
             
             sql = """
@@ -1332,3 +1332,11 @@ logger.info(f"Window: {WINDOW_DURATION}")
 logger.info(f"Watermark: {WATERMARK_DELAY}")
 logger.info(f"Database: {PG_CONFIG['host']}/{PG_CONFIG['dbname']}")
 logger.info("=" * 80)
+
+try:
+    query.awaitTermination()
+except KeyboardInterrupt:
+    logger.info("Stopping pipeline gracefully...")
+    query.stop()
+    spark.stop()
+    logger.info("Pipeline stopped")

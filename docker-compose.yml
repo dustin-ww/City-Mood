@@ -10,6 +10,7 @@ x-fetcher-infra: &fetcher-infra
   environment:
     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     LOG_LEVEL: INFO
+    API_REFRESH_INTERVAL_HOURS: "0"  # Default minunum wait to 30 minutes to avoid overwhelming APIs
 
 
 services:
@@ -243,64 +244,46 @@ services:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-weather-fetcher
     container_name: city-mood-fetch-weather
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "1"  # Fetch weather data every hour
 
   cmm-traffic-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-traffic-fetcher
     container_name: city-mood-traffic-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "1"
 
   cmm-air-pollution-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-air-pollution-fetcher
     container_name: city-mood-air-pollution-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "0.25"  # Fetch air pollution data every 15 minutes
 
   cmm-bbc-news-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-bbc-news-fetcher
     container_name: city-mood-bbc-news-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "3"
 
   cmm-nina-alert-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-nina-alert-fetcher
     container_name: city-mood-nina-alert-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "6"
 
   cmm-nyt-news-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-nyt-news-fetcher
     container_name: city-mood-nyt-news-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "3"
 
   cmm-street-construction-fetcher:    
     <<: *fetcher-infra
     image: citymoodmap/city-mood-street-construction-fetcher
     container_name: city-mood-street-construction-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "12"
 
   cmm-transparenz-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-transparenz-fetcher
     container_name: city-mood-transparenz-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "24"
 
   cmm-water-level-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-water-level-fetcher
     container_name: city-mood-water-level-fetcher
-    environment:
-      API_REFRESH_INTERVAL_HOURS: "1"
 
 volumes:
   postgres-data:

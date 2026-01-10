@@ -9,7 +9,7 @@ WORKDIR /app
 COPY app/common ./common
 COPY app/services/bbc_news_fetcher ./services/bbc_news_fetcher
 
-RUN pip3 install --no-cache-dir -r ./services/bbc_news_fetcher/requirements.txt
+RUN pip3 install -r ./services/bbc_news_fetcher/requirements.txt
 
 ENV PYTHONPATH=/app
 

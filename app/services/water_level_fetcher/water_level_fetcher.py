@@ -1,5 +1,6 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
+
 from common.base_fetcher import BaseFetcher
 from common.common_utils import logger, get_kafka_producer, get_fetch_interval, get_last_timestamp, set_last_timestamp
 import requests

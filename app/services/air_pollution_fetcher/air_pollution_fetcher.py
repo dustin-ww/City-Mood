@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from common.base_fetcher import BaseFetcher
 from common.common_utils import (
     logger,
@@ -91,7 +91,7 @@ class AirPollutionFetcher(BaseFetcher):
         logger.info("Daily air pollution sent.")
 
     def process_air_pollution(self):
-        now = datetime.now(datetime.timezone.utc)
+        now = datetime.now(timezone.utc)
         fetch_interval = get_fetch_interval()  # Sekunden
         last_fetch = get_last_timestamp(REDIS_LAST_FETCH_KEY)
 

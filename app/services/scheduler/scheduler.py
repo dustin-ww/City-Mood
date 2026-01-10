@@ -21,7 +21,6 @@ FETCH_TOPICS = [
     "fetch-bbc-rss",
     "fetch-nyt-rss",
     "fetch-public-alerts",
-    "fetch-traffic",
     "fetch-street-construction",
     "fetch-transparenz",
     "fetch-water-levels",

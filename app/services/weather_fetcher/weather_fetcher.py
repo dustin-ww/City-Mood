@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from common.base_fetcher import BaseFetcher
 from common.common_utils import logger, get_kafka_producer, get_redis_client
 import requests

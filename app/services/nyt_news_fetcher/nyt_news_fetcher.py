@@ -81,7 +81,7 @@ class RssFetcher(BaseFetcher):
             "source": "nytimes",
             "section": section,
             "event_time": event_time,
-            "ingest_time": datetime.utcnow().isoformat() + "Z",
+            "ingest_time": datetime.utcnow().isoformat(),
             "id": entry.get("guid"),
             "title": entry.get("title"),
             "url": entry.get("link"),
@@ -99,6 +99,9 @@ class RssFetcher(BaseFetcher):
 
         # Zeitliche Sperre prüfen
         if last_fetch:
+            if last_fetch.tzinfo is None:
+                last_fetch = last_fetch.replace(tzinfo=timezone.utc)
+            
             elapsed = (now - last_fetch).total_seconds()
             if elapsed < interval:
                 logger.info(

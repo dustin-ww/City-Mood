@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from common.base_fetcher import BaseFetcher
 from common.common_utils import logger, get_kafka_producer, get_last_timestamp, set_last_timestamp, get_fetch_interval
 import requests
@@ -59,7 +59,7 @@ class TransparenzFetcher(BaseFetcher):
         logger.info("All Transparenz events sent.")
 
     def process_transparenz_data(self):
-        now = datetime.now(datetime.timezone.utc)
+        now = datetime.now(timezone.utc)
         last_fetch = get_last_timestamp(REDIS_LAST_FETCH_KEY)
         interval = get_fetch_interval()  # Sekunden
 

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List
 import requests
 
@@ -89,11 +89,13 @@ class StreetConstructionFetcher(BaseFetcher):
         logger.info(f"Sent {sent} street construction events to Kafka")
 
     def process_street_constructions(self):
-        now = datetime.now(datetime.timezone.utc)
+        now = datetime.now(timezone.utc)
         interval = get_fetch_interval()  # Sekunden
         last_fetch = get_last_timestamp(REDIS_LAST_FETCH_KEY)
 
         if last_fetch:
+            if last_fetch.tzinfo is None:
+                last_fetch = last_fetch.replace(tzinfo=timezone.utc)
             elapsed = (now - last_fetch).total_seconds()
             if elapsed < interval:
                 remaining = interval - elapsed

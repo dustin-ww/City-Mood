@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from common.base_fetcher import BaseFetcher
 from common.common_utils import (
     logger,
@@ -109,7 +109,7 @@ class PublicAlertFetcher(BaseFetcher):
 
 
     def process_public_alerts(self):
-        now = datetime.now(datetime.timezone.utc)
+        now = datetime.now(timezone.utc)
         interval = get_fetch_interval()  # Sekunden
         last_fetch = get_last_timestamp(REDIS_LAST_FETCH_KEY)
 

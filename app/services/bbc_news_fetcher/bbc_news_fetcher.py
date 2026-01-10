@@ -70,7 +70,7 @@ class BbcRssFetcher(BaseFetcher):
         return {
             "source": "bbc",
             "section": BBC_FEED["name"],
-            "fetch_timestamp": datetime.utcnow().isoformat() + "Z",
+            "fetch_timestamp": datetime.utcnow().isoformat(),
 
             "id": entry.get("guid"),
             "title": entry.get("title"),
@@ -88,6 +88,9 @@ class BbcRssFetcher(BaseFetcher):
         last_fetch = get_last_timestamp(BBC_FEED["redis_last_fetch"])
 
         if last_fetch:
+            if last_fetch.tzinfo is None:
+                last_fetch = last_fetch.replace(tzinfo=timezone.utc)
+            
             elapsed = (now - last_fetch).total_seconds()
             if elapsed < interval:
                 logger.info(

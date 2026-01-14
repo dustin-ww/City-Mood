@@ -1,6 +1,6 @@
 from kafka import KafkaConsumer
 import json
-from common.common_utils import logger, get_kafka_producer, get_redis, get_fetch_interval, KAFKA_BOOTSTRAP_SERVERS
+from common.common_utils import logger, get_redis_client, get_fetch_interval, KAFKA_BOOTSTRAP_SERVERS
 
 class BaseFetcher:
 
@@ -24,7 +24,7 @@ class BaseFetcher:
 
     def run(self):
         logger.info(f"{self.__class__.__name__} started – waiting for Kafka events on topic {self.wakeup_topic}")
-        redis = get_redis()
+        redis = get_redis_client()
         interval = get_fetch_interval()
         lock_key = f"fetcher:{self.wakeup_topic}:lock"
 
@@ -38,6 +38,7 @@ class BaseFetcher:
 
             try:
                 self.process_message(event)
+                #self.consumer.commit()
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
 

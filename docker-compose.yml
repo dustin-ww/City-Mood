@@ -222,24 +222,45 @@ services:
       - spark-network
     restart: unless-stopped
 
-  # scheduler:
-  #   image: citymoodmap/city-mood-scheduler
-  #   build:
-  #     context: .
-  #     dockerfile: app/services/scheduler/Dockerfile
-  #   networks:
-  #     - spark-network
-  #   depends_on:
-  #     kafka:
-  #       condition: service_healthy
-      # fetch-weather:
-      #   condition: service_started
+  data-pipeline:
+    image: citymoodmap/city-mood-data-pipeline
+    container_name: city-mood-data-pipeline
+    hostname: city-mood-data-pipeline
+    depends_on:
+      - spark-master
+      - spark-worker
+      - postgres
+      - kafka
+      #- scheduler
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: city_mood
+      POSTGRES_USER: spark
+      POSTGRES_PASSWORD: spark
+    volumes:
+      # - ./app:/app
+      # - ./data:/data
+      - ./gx-reports:/app/gx-reports
+    networks:
+      - spark-network
+    restart: unless-stopped
 
-
+  scheduler:
+    image: citymoodmap/city-mood-scheduler
+    build:
+      context: .
+      dockerfile: app/services/scheduler/Dockerfile
+    networks:
+      - spark-network
+    depends_on:
+      kafka:
+        condition: service_healthy
+      cmm-weather-fetcher:
+        condition: service_started
+    command: /bin/sh -c "sleep 30 && python3 scheduler.py"
 
  #API Fetcher Services
-
-
   cmm-weather-fetcher:
     <<: *fetcher-infra
     image: citymoodmap/city-mood-weather-fetcher

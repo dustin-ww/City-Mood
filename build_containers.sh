@@ -17,15 +17,15 @@ docker build \
 
 SERVICES=(
   scheduler
-  air_pollution_fetcher
-  bbc_news_fetcher
-  nina_alert_fetcher
-  street_construction_fetcher
-  traffic_fetcher
-  transparenz_fetcher
-  water_level_fetcher
-  weather_fetcher
-  nyt_news_fetcher
+  # air_pollution_fetcher
+  # bbc_news_fetcher
+  # nina_alert_fetcher
+  # street_construction_fetcher
+  # traffic_fetcher
+  # transparenz_fetcher
+  # water_level_fetcher
+  # weather_fetcher
+  # nyt_news_fetcher
 )
 
 for SERVICE in "${SERVICES[@]}"; do
@@ -36,5 +36,11 @@ for SERVICE in "${SERVICES[@]}"; do
     -t citymoodmap/city-mood-${SERVICE_TAG}:latest \
     -f ./app/services/${SERVICE}/Dockerfile . 
 done
+
+
+# echo "Building spark pipeline container..."
+# docker build --no-cache \
+#   -t citymoodmap/city-mood-data-pipeline:latest \
+#   -f ./app/stream/Dockerfile .
 
 echo "All images built!"

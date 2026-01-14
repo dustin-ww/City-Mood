@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 0,
   "links": [],
   "panels": [
     {
@@ -282,9 +282,10 @@
             "type": "grafana-postgresql-datasource",
             "uid": "P143A3F046755ADB7"
           },
-          "editorMode": "builder",
+          "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT city_mood_score, computed_at, news_score, air_score, weather_score, traffic_score, alerts_score, construction_score FROM city_mood_score_history LIMIT 50 ",
+          "rawQuery": true,
+          "rawSql": "-- In Grafana Datasource Query:\nSELECT \n    written_at as time,\n    city_mood_score,\n    news_score,\n    air_score,\n    weather_score,\n    traffic_score,\n    alerts_score,\n    construction_score,\n    water_score\nFROM city_mood_score_history\nWHERE $__timeFilter(written_at)\nORDER BY written_at DESC",
           "refId": "A",
           "sql": {
             "columns": [
@@ -437,9 +438,10 @@
       "targets": [
         {
           "dataset": "city_mood",
-          "editorMode": "builder",
+          "editorMode": "code",
           "format": "table",
-          "rawSql": "SELECT validation_success_percent,  FROM city_mood_score_history LIMIT 50 ",
+          "rawQuery": true,
+          "rawSql": "SELECT validation_success_percent FROM city_mood_score_history LIMIT 50 ",
           "refId": "A",
           "sql": {
             "columns": [
@@ -564,12 +566,12 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "City Mood Map",
   "uid": "advvwx2",
-  "version": 8
+  "version": 10
 }

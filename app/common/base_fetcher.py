@@ -19,13 +19,18 @@ class BaseFetcher:
             enable_auto_commit=False, # do not auto-commit offsets (to prohibit execution of missed events on restart)
         )
 
+        self.consumer.poll(timeout_ms=1000)  # Hol die Partitionen
+        for tp in self.consumer.assignment(): # Für jede Partition
+            self.consumer.seek_to_end(tp)     # springe ans Ende, alte Nachrichten ignorieren
+
+
     def process_message(self, message: dict):
         raise NotImplementedError()
 
     def run(self):
         logger.info(f"{self.__class__.__name__} started – waiting for Kafka events on topic {self.wakeup_topic}")
         redis = get_redis_client()
-        interval = get_fetch_interval()
+        interval = max(1, int(get_fetch_interval()))
         lock_key = f"fetcher:{self.wakeup_topic}:lock"
 
         for msg in self.consumer:

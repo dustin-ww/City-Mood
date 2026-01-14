@@ -1130,25 +1130,23 @@ def validate_with_great_expectations(pdf, batch_id):
             "warnings": []
         }
 
-# ============================================================================
 # POSTGRES WRITER WITH GREAT EXPECTATIONS
-# ============================================================================
 def write_to_postgres(batch_df, batch_id):
     """Write batch to PostgreSQL with Great Expectations validation"""
     
     # Spark DataFrame API check
     try:
         if hasattr(batch_df, "isEmpty") and batch_df.isEmpty():
-            logger.info(f"⏭️  Batch {batch_id}: Empty batch, skipping")
+            logger.info(f"Batch {batch_id}: Empty batch, skipping")
             return
     except Exception:
         # Some Spark versions may not expose isEmpty in foreachBatch; fallback to count
         if batch_df.count() == 0:
-            logger.info(f"⏭️  Batch {batch_id}: Empty batch, skipping")
+            logger.info(f"Batch {batch_id}: Empty batch, skipping")
             return
 
     batch_count = batch_df.count()
-    logger.info(f"💾 Batch {batch_id}: Processing {batch_count} records")
+    logger.info(f"Batch {batch_id}: Processing {batch_count} records")
     
     pdf = batch_df.toPandas()
     
@@ -1191,7 +1189,7 @@ def write_to_postgres(batch_df, batch_id):
     
     try:
         with conn.cursor() as cur:
-            # Create table if not exists
+            # CREATE MAIN TABLE
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS city_mood_scores (
                     window_start TIMESTAMP NOT NULL,
@@ -1214,7 +1212,31 @@ def write_to_postgres(batch_df, batch_id):
                 );
             """)
             
-            # Add missing columns if they don't exist (schema migration)
+            # CREATE HISTORY TABLE
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS city_mood_score_history (
+                    id SERIAL PRIMARY KEY,
+                    window_start TIMESTAMP NOT NULL,
+                    window_end TIMESTAMP NOT NULL,
+                    city_mood_score DOUBLE PRECISION NOT NULL,
+                    news_score DOUBLE PRECISION,
+                    air_score DOUBLE PRECISION,
+                    weather_score DOUBLE PRECISION,
+                    traffic_score DOUBLE PRECISION,
+                    alerts_score DOUBLE PRECISION,
+                    construction_score DOUBLE PRECISION,
+                    water_score DOUBLE PRECISION,
+                    total_data_points INTEGER,
+                    avg_aqi DOUBLE PRECISION,
+                    avg_temp DOUBLE PRECISION,
+                    avg_water_level DOUBLE PRECISION,
+                    computed_at TIMESTAMP NOT NULL,
+                    written_at TIMESTAMP NOT NULL,
+                    batch_id BIGINT NOT NULL
+                );
+            """)
+            
+            # Add missing columns if they don't exist
             cur.execute("""
                 DO $$ 
                 BEGIN
@@ -1248,15 +1270,32 @@ def write_to_postgres(batch_df, batch_id):
                 END $$;
             """)
             
-            # Create indexes
+            # Main table indexes
             cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_window_start ON city_mood_scores(window_start DESC);
-                CREATE INDEX IF NOT EXISTS idx_city_mood_score ON city_mood_scores(city_mood_score);
+                CREATE INDEX IF NOT EXISTS idx_window_start 
+                    ON city_mood_scores(window_start DESC);
+                CREATE INDEX IF NOT EXISTS idx_city_mood_score 
+                    ON city_mood_scores(city_mood_score);
             """)
             
-            rows = []
+            # History table indexes
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_history_window_start 
+                    ON city_mood_score_history(window_start DESC);
+                CREATE INDEX IF NOT EXISTS idx_history_written_at 
+                    ON city_mood_score_history(written_at DESC);
+                CREATE INDEX IF NOT EXISTS idx_history_batch_id 
+                    ON city_mood_score_history(batch_id);
+            """)
+            
+            # PREPARE DATA FOR BOTH TABLES
+            rows_main = []
+            rows_history = []
+            current_timestamp = datetime.now(timezone.utc)
+            
             for _, row in pdf.iterrows():
-                rows.append((
+                # Prepare common data
+                row_data = (
                     row["window_start"],
                     row["window_end"],
                     float(row["city_mood_score"]),
@@ -1272,10 +1311,16 @@ def write_to_postgres(batch_df, batch_id):
                     float(row["avg_temp"]) if not pd.isna(row["avg_temp"]) else None,
                     float(row["avg_water_level"]) if not pd.isna(row["avg_water_level"]) else None,
                     row["computed_at"],
-                    datetime.now(timezone.utc)
-                ))
+                )
+                
+                # For main table: add updated_at
+                rows_main.append(row_data + (current_timestamp,))
+                
+                # For history table: add written_at and batch_id
+                rows_history.append(row_data + (current_timestamp, batch_id))
             
-            sql = """
+            # WRITE TO MAIN TABLE (UPSERT)
+            sql_main = """
                 INSERT INTO city_mood_scores 
                 (window_start, window_end, city_mood_score, news_score, air_score, 
                  weather_score, traffic_score, alerts_score, construction_score, 
@@ -1300,12 +1345,23 @@ def write_to_postgres(batch_df, batch_id):
                     computed_at = EXCLUDED.computed_at,
                     updated_at = EXCLUDED.updated_at;
             """
+            execute_values(cur, sql_main, rows_main, page_size=1000)
+            logger.info(f"Batch {batch_id}: Successfully written {len(rows_main)} records to main table")
             
-            execute_values(cur, sql, rows, page_size=1000)
-            logger.info(f"   ✅ Batch {batch_id}: Successfully written {len(rows)} records")
+            # WRITE TO HISTORY TABLE (ALWAYS INSERT
+            sql_history = """
+                INSERT INTO city_mood_score_history 
+                (window_start, window_end, city_mood_score, news_score, air_score, 
+                 weather_score, traffic_score, alerts_score, construction_score, 
+                 water_score, total_data_points, avg_aqi, avg_temp, avg_water_level,
+                 computed_at, written_at, batch_id)
+                VALUES %s;
+            """
+            execute_values(cur, sql_history, rows_history, page_size=1000)
+            logger.info(f"Batch {batch_id}: Successfully written {len(rows_history)} records to history table")
             
     except Exception as e:
-        logger.error(f"   ❌ Batch {batch_id}: Database error: {e}")
+        logger.error(f"Batch {batch_id}: Database error: {e}")
         raise
     finally:
         conn.close()

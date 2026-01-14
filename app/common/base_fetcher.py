@@ -22,6 +22,7 @@ class BaseFetcher:
         self.consumer.poll(timeout_ms=1000)  # Hol die Partitionen
         for tp in self.consumer.assignment(): # Für jede Partition
             self.consumer.seek_to_end(tp)     # springe ans Ende, alte Nachrichten ignorieren
+        self.consumer.commit()
 
 
     def process_message(self, message: dict):

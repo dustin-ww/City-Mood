@@ -27,7 +27,7 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-datav2:/var/lib/postgresql/data
     networks:
       - spark-network
 
@@ -66,7 +66,7 @@ services:
       # ---- Storage ----
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
-      - kafka-datav2:/var/lib/kafka/data
+      - kafka-datav3:/var/lib/kafka/data
     networks:
       - spark-network
     healthcheck:
@@ -286,8 +286,8 @@ services:
     container_name: city-mood-water-level-fetcher
 
 volumes:
-  postgres-data:
-  kafka-datav2:
+  postgres-datav2:
+  kafka-datav3:
   grafana-data:
   redis-data:
 

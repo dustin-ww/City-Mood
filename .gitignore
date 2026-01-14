@@ -8,6 +8,7 @@ __pycache__/
 .DS_Store
 .
 !.devcontainer/devcontainer.json
+!/grafana/provisioning/dashboards/city-mood-dashboard.json
 
 /spark-apps/
 /spark-data/

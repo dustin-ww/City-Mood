@@ -51,7 +51,7 @@ spark.sparkContext.setLogLevel("WARN")
 
 # CONFIGURATION
 KAFKA_BOOTSTRAP = "kafka:9092"
-CHECKPOINT_DIR = "/tmp/spark-checkpoint/city-mood-union-modev7"
+CHECKPOINT_DIR = "/tmp/spark-checkpoint/city-mood-union-modev9"
 WINDOW_DURATION = "1 hour"
 WATERMARK_DELAY = "2 minutes"
 TRIGGER_INTERVAL = "20 seconds"
@@ -1212,7 +1212,7 @@ def write_to_postgres(batch_df, batch_id):
                 );
             """)
             
-            # CREATE HISTORY TABLE
+            # CREATE HISTORY TABLE WITH VALIDATION COLUMNS
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS city_mood_score_history (
                     id SERIAL PRIMARY KEY,
@@ -1232,11 +1232,18 @@ def write_to_postgres(batch_df, batch_id):
                     avg_water_level DOUBLE PRECISION,
                     computed_at TIMESTAMP NOT NULL,
                     written_at TIMESTAMP NOT NULL,
-                    batch_id BIGINT NOT NULL
+                    batch_id BIGINT NOT NULL,
+                    validation_success BOOLEAN,
+                    validation_success_percent DOUBLE PRECISION,
+                    validation_evaluated_expectations INTEGER,
+                    validation_successful_expectations INTEGER,
+                    validation_failed_expectations INTEGER,
+                    validation_failed_list TEXT,
+                    validation_warnings_list TEXT
                 );
             """)
             
-            # Add missing columns if they don't exist
+            # Add missing columns to main table if they don't exist
             cur.execute("""
                 DO $$ 
                 BEGIN
@@ -1270,6 +1277,61 @@ def write_to_postgres(batch_df, batch_id):
                 END $$;
             """)
             
+            # Add missing validation columns to history table if they don't exist
+            cur.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='city_mood_score_history' AND column_name='validation_success'
+                    ) THEN
+                        ALTER TABLE city_mood_score_history ADD COLUMN validation_success BOOLEAN;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='city_mood_score_history' AND column_name='validation_success_percent'
+                    ) THEN
+                        ALTER TABLE city_mood_score_history ADD COLUMN validation_success_percent DOUBLE PRECISION;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='city_mood_score_history' AND column_name='validation_evaluated_expectations'
+                    ) THEN
+                        ALTER TABLE city_mood_score_history ADD COLUMN validation_evaluated_expectations INTEGER;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='city_mood_score_history' AND column_name='validation_successful_expectations'
+                    ) THEN
+                        ALTER TABLE city_mood_score_history ADD COLUMN validation_successful_expectations INTEGER;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='city_mood_score_history' AND column_name='validation_failed_expectations'
+                    ) THEN
+                        ALTER TABLE city_mood_score_history ADD COLUMN validation_failed_expectations INTEGER;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='city_mood_score_history' AND column_name='validation_failed_list'
+                    ) THEN
+                        ALTER TABLE city_mood_score_history ADD COLUMN validation_failed_list TEXT;
+                    END IF;
+                    
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='city_mood_score_history' AND column_name='validation_warnings_list'
+                    ) THEN
+                        ALTER TABLE city_mood_score_history ADD COLUMN validation_warnings_list TEXT;
+                    END IF;
+                END $$;
+            """)
+            
             # Main table indexes
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_window_start 
@@ -1286,7 +1348,25 @@ def write_to_postgres(batch_df, batch_id):
                     ON city_mood_score_history(written_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_history_batch_id 
                     ON city_mood_score_history(batch_id);
+                CREATE INDEX IF NOT EXISTS idx_history_validation_success 
+                    ON city_mood_score_history(validation_success);
+                CREATE INDEX IF NOT EXISTS idx_history_validation_success_percent 
+                    ON city_mood_score_history(validation_success_percent);
             """)
+            
+            # EXTRACT VALIDATION METRICS
+            stats = validation_result.get("statistics", {})
+            validation_success = validation_result.get("success", False)
+            validation_success_percent = stats.get("success_percent", 0)
+            validation_evaluated = stats.get("evaluated_expectations", 0)
+            validation_successful = stats.get("successful_expectations", 0)
+            validation_failed_count = len(validation_result.get("failed_expectations", []))
+            validation_warnings_count = len(validation_result.get("warnings", []))
+            
+            # Convert lists to JSON strings for storage
+            import json
+            validation_failed_list = json.dumps(validation_result.get("failed_expectations", []))
+            validation_warnings_list = json.dumps(validation_result.get("warnings", []))
             
             # PREPARE DATA FOR BOTH TABLES
             rows_main = []
@@ -1316,8 +1396,18 @@ def write_to_postgres(batch_df, batch_id):
                 # For main table: add updated_at
                 rows_main.append(row_data + (current_timestamp,))
                 
-                # For history table: add written_at and batch_id
-                rows_history.append(row_data + (current_timestamp, batch_id))
+                # For history table: add written_at, batch_id, and validation data
+                rows_history.append(row_data + (
+                    current_timestamp,
+                    batch_id,
+                    validation_success,
+                    validation_success_percent,
+                    validation_evaluated,
+                    validation_successful,
+                    validation_failed_count,
+                    validation_failed_list,
+                    validation_warnings_list
+                ))
             
             # WRITE TO MAIN TABLE (UPSERT)
             sql_main = """
@@ -1348,17 +1438,23 @@ def write_to_postgres(batch_df, batch_id):
             execute_values(cur, sql_main, rows_main, page_size=1000)
             logger.info(f"Batch {batch_id}: Successfully written {len(rows_main)} records to main table")
             
-            # WRITE TO HISTORY TABLE (ALWAYS INSERT
+            # WRITE TO HISTORY TABLE (ALWAYS INSERT) WITH VALIDATION DATA
             sql_history = """
                 INSERT INTO city_mood_score_history 
                 (window_start, window_end, city_mood_score, news_score, air_score, 
                  weather_score, traffic_score, alerts_score, construction_score, 
                  water_score, total_data_points, avg_aqi, avg_temp, avg_water_level,
-                 computed_at, written_at, batch_id)
+                 computed_at, written_at, batch_id,
+                 validation_success, validation_success_percent,
+                 validation_evaluated_expectations, validation_successful_expectations,
+                 validation_failed_expectations, validation_failed_list, validation_warnings_list)
                 VALUES %s;
             """
             execute_values(cur, sql_history, rows_history, page_size=1000)
             logger.info(f"Batch {batch_id}: Successfully written {len(rows_history)} records to history table")
+            logger.info(f" Validation metrics: Success={validation_success}, "
+                       f"Success%={validation_success_percent:.1f}%, "
+                       f"Failed={validation_failed_count}, Warnings={validation_warnings_count}")
             
     except Exception as e:
         logger.error(f"Batch {batch_id}: Database error: {e}")

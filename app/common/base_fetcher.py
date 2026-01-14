@@ -1,6 +1,6 @@
 from kafka import KafkaConsumer
 import json
-from common.common_utils import logger, get_kafka_producer, KAFKA_BOOTSTRAP_SERVERS
+from common.common_utils import logger, get_kafka_producer, get_redis, get_fetch_interval, KAFKA_BOOTSTRAP_SERVERS
 
 class BaseFetcher:
 
@@ -24,10 +24,20 @@ class BaseFetcher:
 
     def run(self):
         logger.info(f"{self.__class__.__name__} started – waiting for Kafka events on topic {self.wakeup_topic}")
+        redis = get_redis()
+        interval = get_fetch_interval()
+        lock_key = f"fetcher:{self.wakeup_topic}:lock"
+
         for msg in self.consumer:
             event = msg.value
             logger.info(f"Received fetch trigger: {event}")
+
+            if not redis.set(lock_key, "1", nx=True, ex=interval):
+                logger.info("Fetcher locked – skipping trigger")
+                continue
+
             try:
                 self.process_message(event)
             except Exception as e:
                 logger.error(f"Error processing message: {e}")
+

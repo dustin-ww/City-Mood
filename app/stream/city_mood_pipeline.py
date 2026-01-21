@@ -22,6 +22,7 @@ import shutil
 import glob
 import traceback
 from pathlib import Path
+import pytz
 
 # Logging
 logging.basicConfig(
@@ -30,7 +31,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# SPARK SESSION CONFIGURATION
+# TIMEZONE CONFIGURATION
+BERLIN_TZ = pytz.timezone('Europe/Berlin')
+
+# convert naive or UTC timestamps to Berlin time
+def convert_to_berlin_time(timestamp):
+    if pd.isna(timestamp):
+        return None
+    if timestamp.tzinfo is None:
+        timestamp = pytz.utc.localize(timestamp)
+    return timestamp.astimezone(BERLIN_TZ)
+
+# config
 spark = SparkSession.builder \
     .appName("CityMoodRealtimeStreaming") \
     .master("spark://spark-master:7077") \
@@ -49,11 +61,10 @@ spark = SparkSession.builder \
 
 spark.sparkContext.setLogLevel("WARN")
 
-# CONFIGURATION
 KAFKA_BOOTSTRAP = "kafka:9092"
-CHECKPOINT_DIR = "/tmp/spark-checkpoint/city-mood-union-modev9"
-WINDOW_DURATION = "1 hour"
-WATERMARK_DELAY = "2 minutes"
+CHECKPOINT_DIR = "/tmp/spark/checkpoints/city-mood-union-mood-checkpointv3"
+WINDOW_DURATION = "60 minutes"
+WATERMARK_DELAY = "5 minutes"
 TRIGGER_INTERVAL = "20 seconds"
 
 PG_CONFIG = {
@@ -63,9 +74,9 @@ PG_CONFIG = {
     "password": "spark"
 }
 
-logger.info("=" * 80)
-logger.info("CITY MOOD REAL-TIME STREAMING PIPELINE - GREAT EXPECTATIONS")
-logger.info("=" * 80)
+logger.info("===")
+logger.info("CITY MOOD DATA PIPELINE")
+logger.info("===")
 logger.info(f"Trigger Interval: {TRIGGER_INTERVAL}")
 logger.info(f"Window Duration: {WINDOW_DURATION}")
 logger.info(f"Watermark Delay: {WATERMARK_DELAY}")
@@ -73,17 +84,13 @@ logger.info(f"Output Mode: UPDATE (union-based aggregation)")
 logger.info(f"Data Quality: Great Expectations")
 logger.info("=" * 80)
 
-# GREAT EXPECTATIONS SETUP
 os.makedirs("./gx-reports", exist_ok=True)
 
-# Create GX Context (for v1.0+)
 context = gx.get_context()
-
 logger.info("Great Expectations context initialized")
 
-# HTML REPORT MANAGEMENT
+# HTML Report
 HTML_REPORT_PATH = "./gx-reports/validation_report.html"
-
 def initialize_html_report():
     """Initialize the HTML report file with header and table structure"""
     html_content = """<!DOCTYPE html>
@@ -282,7 +289,7 @@ def initialize_html_report():
     <div class="container">
         <div class="header">
             <h1>🔍 Great Expectations Validation Report</h1>
-            <p>City Mood Real-Time Streaming Pipeline</p>
+            <p>City Mood Real-Time Streaming Pipeline - Europe/Berlin Timezone</p>
         </div>
         
         <div class="stats" id="stats">
@@ -369,7 +376,6 @@ def initialize_html_report():
 
 
 def append_validation_to_html(batch_id, validation_result, batch_stats):
-    """Append a new validation result to the HTML report"""
     try:
 
         with open(HTML_REPORT_PATH, 'r', encoding='utf-8') as f:
@@ -433,8 +439,7 @@ def append_validation_to_html(batch_id, validation_result, batch_stats):
         else:
             warnings_text = "-"
         
-        # Current timestamp
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        timestamp = datetime.now(BERLIN_TZ).strftime("%Y-%m-%d %H:%M:%S")
         
         # Create new row
         new_row = f"""
@@ -460,13 +465,11 @@ def append_validation_to_html(batch_id, validation_result, batch_stats):
             html_content[insert_pos:]
         )
         
-        # Update last update timestamp
         html_content = html_content.replace(
             '<span id="last-update">Never</span>',
             f'<span id="last-update">{timestamp}</span>'
         )
         
-        # Write back to file
         with open(HTML_REPORT_PATH, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
@@ -477,7 +480,6 @@ def append_validation_to_html(batch_id, validation_result, batch_stats):
         logger.error(traceback.format_exc())
 
 
-# Initialize HTML report at startup
 initialize_html_report()
 
 def create_expectation_suite():
@@ -497,12 +499,10 @@ def create_expectation_suite():
 
     logger.info(f"Creating new Expectation Suite: {suite_name}")
 
-    # Create an empty ExpectationSuite object and add to context
     suite = ExpectationSuite(name=suite_name)
     try:
         context.suites.add(suite)
     except Exception:
-        # fallback: save
         try:
             context.suites.save(suite)
         except Exception as e:
@@ -516,14 +516,14 @@ def apply_expectations(validator):
     Apply the expectations to the validator (Great Expectations >=1.0 style).
     Keep critical expectations first.
     """
-    # --- CRITICAL: Main Score Validation ---
+    # Main Score Validation
     validator.expect_column_to_exist("city_mood_score")
     validator.expect_column_values_to_not_be_null("city_mood_score")
     validator.expect_column_values_to_be_between(
         "city_mood_score", min_value=0.0, max_value=1.0, mostly=1.0
     )
 
-    # --- Component Scores Validation ---
+    # Component Scores Validation
     validator.expect_column_values_to_be_between("news_score", min_value=0.0, max_value=1.0, mostly=1.0)
     validator.expect_column_values_to_be_between("air_score", min_value=0.0, max_value=1.0, mostly=1.0)
     validator.expect_column_values_to_be_between("weather_score", min_value=0.0, max_value=1.0, mostly=1.0)
@@ -532,31 +532,29 @@ def apply_expectations(validator):
     validator.expect_column_values_to_be_between("construction_score", min_value=0.0, max_value=1.0, mostly=1.0)
     validator.expect_column_values_to_be_between("water_score", min_value=0.0, max_value=1.0, mostly=1.0)
 
-    # --- Timestamp Validation ---
+    # Timestamp Validation
     validator.expect_column_to_exist("window_start")
     validator.expect_column_values_to_not_be_null("window_start")
     validator.expect_column_to_exist("window_end")
     validator.expect_column_values_to_not_be_null("window_end")
 
-    # --- Duplicate Check ---
-    # For streaming/windowed data unique window_start may be desired
+    # Duplicate Check 
     try:
         validator.expect_column_values_to_be_unique("window_start")
     except Exception:
-        # some GE installations enforce different semantics; ignore if not available
         logger.debug("expect_column_values_to_be_unique not available or not applicable in this context")
 
-    # --- Plausibility Checks ---
+    # Plausibility Checks
     validator.expect_column_values_to_be_between("avg_temp", min_value=-30.0, max_value=50.0, mostly=0.95)
     validator.expect_column_values_to_be_between("avg_aqi", min_value=0.0, max_value=500.0, mostly=0.95)
     validator.expect_column_values_to_be_between("avg_water_level", min_value=0.0, max_value=2000.0, mostly=0.95)
 
-    # --- Data Availability Checks (use min_value only to avoid None issues) ---
+    # Data Availability Checks 
     validator.expect_column_mean_to_be_between("news_count", min_value=0.5)
     validator.expect_column_mean_to_be_between("traffic_count", min_value=3.0)
     validator.expect_column_mean_to_be_between("total_data_points", min_value=5.0)
 
-    # --- Schema Validation ---
+    # Schema Validation
     validator.expect_table_columns_to_match_set(
         column_set=[
             "window_start", "window_end", "city_mood_score",
@@ -569,19 +567,15 @@ def apply_expectations(validator):
         ]
     )
 
-    # Save expectation suite back to the context (persist)
     try:
         validator.save_expectation_suite()
     except Exception as e:
-        # Some GX backends may require alternate saving; log and continue
         logger.warning(f"Could not save expectation suite via validator.save_expectation_suite(): {e}")
 
-# Create expectation suite at startup (ensures suite exists)
+# Create expectation suite at startup 
 expectation_suite = create_expectation_suite()
 
-# ============================================================================
 # SCHEMAS
-# ============================================================================
 news_schema = StructType([
     StructField("source", StringType(), True),
     StructField("section", StringType(), True),
@@ -599,7 +593,18 @@ air_schema = StructType([
     StructField("current", StructType([
         StructField("european_aqi", IntegerType(), True),
         StructField("pm2_5", DoubleType(), True),
-        StructField("pm10", DoubleType(), True)
+        StructField("pm10", DoubleType(), True),
+        StructField("nitrogen_dioxide", DoubleType(), True),
+        StructField("ozone", DoubleType(), True),
+        StructField("sulphur_dioxide", DoubleType(), True),
+        StructField("carbon_monoxide", DoubleType(), True),
+        StructField("dust", DoubleType(), True),
+        StructField("alder_pollen", DoubleType(), True),
+        StructField("birch_pollen", DoubleType(), True),
+        StructField("grass_pollen", DoubleType(), True),
+        StructField("mugwort_pollen", DoubleType(), True),
+        StructField("olive_pollen", DoubleType(), True),
+        StructField("ragweed_pollen", DoubleType(), True)
     ]), True)
 ])
 
@@ -654,11 +659,8 @@ water_schema = StructType([
     ]), True)
 ])
 
-# ============================================================================
-# UNIFIED KAFKA STREAM READER
-# ============================================================================
+# Kafka Stream Reader
 def create_unified_stream():
-    """Create a single unified stream from all Kafka topics"""
     logger.info("Creating unified Kafka stream...")
     
     all_topics = [
@@ -673,13 +675,13 @@ def create_unified_stream():
         "hh-water-level-current"
     ]
     
-    logger.info("Starting from EARLIEST offsets")
+    logger.info("Starting from LATEST offsets")
     
     return spark.readStream \
         .format("kafka") \
         .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP) \
         .option("subscribe", ",".join(all_topics)) \
-        .option("startingOffsets", "earliest") \
+        .option("startingOffsets", "latest") \
         .option("failOnDataLoss", "false") \
         .option("maxOffsetsPerTrigger", "5000") \
         .load() \
@@ -689,16 +691,12 @@ def create_unified_stream():
             col("timestamp").alias("kafka_timestamp")
         )
 
-# ============================================================================
-# PARSE AND UNIFY ALL DATA
-# ============================================================================
-
+# Parse and unify all data streams
 def parse_and_unify_all(df):
-    """Parse all topics and unify into single stream for aggregation"""
     
     logger.info("Parsing and unifying all data streams...")
     
-    # ========== NEWS ==========
+    # News
     news_df = df.filter(col("topic").isin("bbc-europe-news", "nyt-europe-news", "nyt-world-news")) \
         .select(
             from_json(col("json_value"), news_schema).alias("data"),
@@ -728,40 +726,113 @@ def parse_and_unify_all(df):
             lit(None).cast("double").alias("water_level")
         )
     
-    # ========== AIR QUALITY ==========
+    # Air Quality
     air_df = df.filter(col("topic") == "hh-air-pollution-current") \
-        .select(
-            from_json(col("json_value"), air_schema).alias("data"),
-            col("kafka_timestamp")
-        ) \
-        .select("data.*", "kafka_timestamp") \
-        .withColumn("event_time", to_timestamp(col("fetch_timestamp"))) \
-        .withWatermark("event_time", WATERMARK_DELAY) \
-        .withColumn("air_score",
-            when(col("current.european_aqi") <= 50, lit(1.0))
-            .when(col("current.european_aqi") <= 100,
-                  lit(0.7) - ((col("current.european_aqi") - 50) * 0.006))
-            .when(col("current.european_aqi") <= 150,
-                  lit(0.4) - ((col("current.european_aqi") - 100) * 0.006))
-            .otherwise(lit(0.1))
-        ) \
-        .select(
-            col("event_time"),
-            lit(None).cast("double").alias("news_score"),
-            col("air_score"),
-            lit(None).cast("double").alias("weather_score"),
-            lit(None).cast("double").alias("traffic_score"),
-            lit(None).cast("double").alias("alert_score"),
-            lit(None).cast("integer").alias("alert_count_raw"),
-            lit(None).cast("double").alias("avg_alert_impact"),
-            lit(None).cast("integer").alias("construction_count_raw"),
-            lit(None).cast("double").alias("water_score"),
-            col("current.european_aqi").cast("double").alias("aqi"),
-            lit(None).cast("double").alias("temperature"),
-            lit(None).cast("double").alias("water_level")
-        )
+    .select(
+        from_json(col("json_value"), air_schema).alias("data"),
+        col("kafka_timestamp")
+    ) \
+    .select("data.*", "kafka_timestamp") \
+    .withColumn("event_time", to_timestamp(col("fetch_timestamp"))) \
+    .withWatermark("event_time", WATERMARK_DELAY) \
+    .withColumn("pm25_score",
+        when(col("current.pm2_5") <= 10, lit(1.0)) # Sehr gut
+        .when(col("current.pm2_5") <= 15, lit(0.9)) # Gut
+        .when(col("current.pm2_5") <= 25, lit(0.7)) # Moderat
+        .when(col("current.pm2_5") <= 35, lit(0.5)) # Ungesund für sensible Gruppen
+        .when(col("current.pm2_5") <= 50, lit(0.3)) # Ungesund
+        .otherwise(lit(0.1)) # Sehr ungesund
+    ) \
+    .withColumn("pm10_score",
+        when(col("current.pm10") <= 20, lit(1.0))
+        .when(col("current.pm10") <= 45, lit(0.8)) # WHO Tagesmittel
+        .when(col("current.pm10") <= 75, lit(0.6))
+        .when(col("current.pm10") <= 100, lit(0.4))
+        .otherwise(lit(0.2))
+    ) \
+    .withColumn("no2_score",
+        when(col("current.nitrogen_dioxide") <= 40, lit(1.0)) # Unter EU-Grenzwert
+        .when(col("current.nitrogen_dioxide") <= 80, lit(0.8))
+        .when(col("current.nitrogen_dioxide") <= 120, lit(0.6))
+        .when(col("current.nitrogen_dioxide") <= 200, lit(0.3)) # EU Stunden-Grenzwert
+        .otherwise(lit(0.1))
+    ) \
+    .withColumn("o3_score",
+        when(col("current.ozone") <= 100, lit(1.0))
+        .when(col("current.ozone") <= 120, lit(0.8)) # EU Zielwert
+        .when(col("current.ozone") <= 180, lit(0.5)) # Informationsschwelle
+        .when(col("current.ozone") <= 240, lit(0.2)) # Alarmschwelle
+        .otherwise(lit(0.05))
+    ) \
+    .withColumn("so2_score",
+        when(col("current.sulphur_dioxide") <= 50, lit(1.0))
+        .when(col("current.sulphur_dioxide") <= 125, lit(0.8)) # EU Tages-Grenzwert
+        .when(col("current.sulphur_dioxide") <= 350, lit(0.4)) # EU Stunden-Grenzwert
+        .otherwise(lit(0.1))
+    ) \
+    .withColumn("co_score",
+        when(col("current.carbon_monoxide") <= 4000, lit(1.0))
+        .when(col("current.carbon_monoxide") <= 10000, lit(0.7)) # EU Grenzwert
+        .when(col("current.carbon_monoxide") <= 15000, lit(0.4))
+        .otherwise(lit(0.1))
+    ) \
+    .withColumn("dust_score",
+        when(col("current.dust") <= 10, lit(1.0))
+        .when(col("current.dust") <= 30, lit(0.8))
+        .when(col("current.dust") <= 60, lit(0.5))
+        .otherwise(lit(0.2))
+    ) \
+    .withColumn("total_pollen",
+        coalesce(col("current.alder_pollen"), lit(0.0)) +
+        coalesce(col("current.birch_pollen"), lit(0.0)) +
+        coalesce(col("current.grass_pollen"), lit(0.0)) +
+        coalesce(col("current.mugwort_pollen"), lit(0.0)) +
+        coalesce(col("current.olive_pollen"), lit(0.0)) +
+        coalesce(col("current.ragweed_pollen"), lit(0.0))
+    ) \
+    .withColumn("pollen_score",
+        when(col("total_pollen") == 0, lit(1.0)) # Keine Pollen
+        .when(col("total_pollen") <= 50, lit(0.9)) # Niedrig
+        .when(col("total_pollen") <= 150, lit(0.7)) # Moderat
+        .when(col("total_pollen") <= 300, lit(0.5)) # Hoch
+        .otherwise(lit(0.3)) # Sehr hoch
+    ) \
+    \
+    .withColumn("air_score",
+        col("pm25_score") * 0.30 +          
+        col("pm10_score") * 0.15 +
+        col("no2_score") * 0.20 + # Verkehrsbelastung
+        col("o3_score") * 0.15 + # Sommersmog
+        col("so2_score") * 0.05 +
+        col("co_score") * 0.05 +
+        col("dust_score") * 0.05 +
+        col("pollen_score") * 0.05 # Für Allergiker relevant
+    ) \
+    \
+    .withColumn("health_risk_category",
+        when(col("air_score") >= 0.8, lit("GOOD"))
+        .when(col("air_score") >= 0.6, lit("MODERATE"))
+        .when(col("air_score") >= 0.4, lit("UNHEALTHY_SENSITIVE"))
+        .when(col("air_score") >= 0.2, lit("UNHEALTHY"))
+        .otherwise(lit("VERY_UNHEALTHY"))
+    ) \
+    .select(
+        col("event_time"),
+        lit(None).cast("double").alias("news_score"),
+        col("air_score"),
+        lit(None).cast("double").alias("weather_score"),
+        lit(None).cast("double").alias("traffic_score"),
+        lit(None).cast("double").alias("alert_score"),
+        lit(None).cast("integer").alias("alert_count_raw"),
+        lit(None).cast("double").alias("avg_alert_impact"),
+        lit(None).cast("integer").alias("construction_count_raw"),
+        lit(None).cast("double").alias("water_score"),
+        col("current.european_aqi").cast("double").alias("aqi"),
+        lit(None).cast("double").alias("temperature"),
+        lit(None).cast("double").alias("water_level")
+    )
     
-    # ========== WEATHER ==========
+    # Wether
     weather_df = df.filter(col("topic") == "hh-weather-current") \
         .select(
             from_json(col("json_value"), weather_schema).alias("data"),
@@ -817,7 +888,7 @@ def parse_and_unify_all(df):
             lit(None).cast("double").alias("water_level")
         )
     
-    # ========== TRAFFIC ==========
+    # Traffic
     traffic_df = df.filter(col("topic") == "hh-traffic-data") \
         .select(
             from_json(col("json_value"), traffic_schema).alias("data"),
@@ -848,7 +919,7 @@ def parse_and_unify_all(df):
             lit(None).cast("double").alias("water_level")
         )
     
-    # ========== ALERTS ==========
+    # Nina Alerts
     alerts_df = df.filter(col("topic") == "hh-public-alerts-current") \
         .select(
             from_json(col("json_value"), alerts_schema).alias("data"),
@@ -880,7 +951,7 @@ def parse_and_unify_all(df):
             lit(None).cast("double").alias("water_level")
         )
     
-    # ========== CONSTRUCTION ==========
+    # Construction
     construction_df = df.filter(col("topic") == "hh-street-construction") \
         .select(
             from_json(col("json_value"), construction_schema).alias("data"),
@@ -906,7 +977,7 @@ def parse_and_unify_all(df):
             lit(None).cast("double").alias("water_level")
         )
     
-    # ========== WATER ==========
+    # Water
     water_df = df.filter(col("topic") == "hh-water-level-current") \
         .select(
             from_json(col("json_value"), water_schema).alias("data"),
@@ -939,7 +1010,7 @@ def parse_and_unify_all(df):
             col("measurement.value_cm").cast("double").alias("water_level")
         )
     
-    # ========== UNION ALL STREAMS ==========
+    # Union all streams
     logger.info("Unifying all data streams with unionByName...")
     
     unified = news_df \
@@ -950,10 +1021,10 @@ def parse_and_unify_all(df):
         .unionByName(construction_df) \
         .unionByName(water_df)
     
-    # ========== SINGLE AGGREGATION ==========
+    # Singe aggregation over unified stream
     logger.info("Creating single aggregation over unified stream...")
     
-    aggregated = unified.groupBy(window("event_time", WINDOW_DURATION)) \
+    aggregated = unified.groupBy(window("event_time", WINDOW_DURATION, startTime="0 seconds")) \
         .agg(
             # Score averages
             avg("news_score").alias("news_score"),
@@ -996,9 +1067,7 @@ def parse_and_unify_all(df):
     
     return aggregated
 
-# ============================================================================
-# CREATE STREAM AND CALCULATE FINAL SCORES
-# ============================================================================
+# Create stream and calc final score
 logger.info("Setting up streaming pipeline...")
 
 unified_stream = create_unified_stream()
@@ -1043,25 +1112,17 @@ city_mood_final = city_mood.select(
     "computed_at", current_timestamp()
 )
 
-# ============================================================================
-# GREAT EXPECTATIONS VALIDATION
-# ============================================================================
+# GX Batch Validation
 def validate_with_great_expectations(pdf, batch_id):
-    """
-    Validate data quality using Great Expectations with EphemeralDataContext.
-    Uses Validator with PandasExecutionEngine.
-    """
     logger.info(f"Batch {batch_id}: Running Great Expectations validation...")
 
     try:
-        # Create Batch object for the DataFrame
         ge_load_time = datetime.utcnow().isoformat()
         batch = Batch(
             data=pdf,
             batch_markers=BatchMarkers(ge_load_time=ge_load_time)
         )
 
-        # Create validator directly from pandas DataFrame
         validator = Validator(
             execution_engine=PandasExecutionEngine(batch_data_dict={"batch": pdf}),
             batches=[batch],
@@ -1092,26 +1153,26 @@ def validate_with_great_expectations(pdf, batch_id):
                     "city_mood_score", "news_score", "air_score",
                     "weather_score", "traffic_score"
                 ]:
-                    failed_expectations.append(f"❌ {exp_type} failed for {column}")
+                    failed_expectations.append(f"{exp_type} failed for {column}")
                 else:
-                    warnings.append(f"⚠️ {exp_type} failed for {column}")
+                    warnings.append(f"{exp_type} failed for {column}")
 
         # Logging
         if success:
             logger.info(
-                f"   ✅ Batch {batch_id}: Validation PASSED "
+                f"Batch {batch_id}: Validation PASSED "
                 f"({statistics.get('success_percent', 0):.1f}%)"
             )
         else:
             logger.warning(
-                f"   ⚠️ Batch {batch_id}: Validation FAILED "
+                f"Batch {batch_id}: Validation FAILED "
                 f"({statistics.get('success_percent', 0):.1f}%)"
             )
 
         for f in failed_expectations:
-            logger.error(f"      {f}")
+            logger.error(f"{f}")
         for w in warnings:
-            logger.warning(f"      {w}")
+            logger.warning(f"{w}")
 
         return {
             "success": success,
@@ -1121,18 +1182,17 @@ def validate_with_great_expectations(pdf, batch_id):
         }
 
     except Exception as e:
-        logger.error(f"   ❌ Batch {batch_id}: Great Expectations validation error: {e}")
+        logger.error(f"Batch {batch_id}: Great Expectations validation error: {e}")
         logger.error(traceback.format_exc())
         return {
             "success": False,
             "error": str(e),
-            "failed_expectations": [f"❌ Validation crashed: {e}"],
+            "failed_expectations": [f"Validation crashed: {e}"],
             "warnings": []
         }
 
-# POSTGRES WRITER WITH GREAT EXPECTATIONS
+# Postgres Writer
 def write_to_postgres(batch_df, batch_id):
-    """Write batch to PostgreSQL with Great Expectations validation"""
     
     # Spark DataFrame API check
     try:
@@ -1140,7 +1200,6 @@ def write_to_postgres(batch_df, batch_id):
             logger.info(f"Batch {batch_id}: Empty batch, skipping")
             return
     except Exception:
-        # Some Spark versions may not expose isEmpty in foreachBatch; fallback to count
         if batch_df.count() == 0:
             logger.info(f"Batch {batch_id}: Empty batch, skipping")
             return
@@ -1149,6 +1208,15 @@ def write_to_postgres(batch_df, batch_id):
     logger.info(f"Batch {batch_id}: Processing {batch_count} records")
     
     pdf = batch_df.toPandas()
+    
+    # Convert utc timestamps to Berlin timezone
+    logger.info(f"Batch {batch_id}: Converting timestamps to Berlin timezone...")
+    
+    pdf['window_start'] = pdf['window_start'].apply(convert_to_berlin_time)
+    pdf['window_end'] = pdf['window_end'].apply(convert_to_berlin_time)
+    pdf['computed_at'] = pdf['computed_at'].apply(convert_to_berlin_time)
+    
+    current_timestamp = datetime.now(BERLIN_TZ)
     
     # Prepare batch statistics for HTML report
     batch_stats = {
@@ -1165,23 +1233,19 @@ def write_to_postgres(batch_df, batch_id):
             batch_stats["total_points"] = int(pdf['total_data_points'].sum())
             batch_stats["time_range"] = f"{pdf['window_start'].min()} - {pdf['window_end'].max()}"
             
-            logger.info(f"   📊 Batch {batch_id} Stats:")
-            logger.info(f"      Time range: {batch_stats['time_range']}")
-            logger.info(f"      Avg City Mood: {batch_stats['avg_mood']:.3f}")
-            logger.info(f"      Total data points: {batch_stats['total_points']}")
+            logger.info(f"Batch {batch_id} Stats:")
+            logger.info(f"Time range: {batch_stats['time_range']}")
+            logger.info(f"Avg City Mood: {batch_stats['avg_mood']:.3f}")
+            logger.info(f"Total data points: {batch_stats['total_points']}")
         except Exception as e:
             logger.debug(f"Could not compute some batch stats for log: {e}")
     
-    # GREAT EXPECTATIONS VALIDATION
     validation_result = validate_with_great_expectations(pdf, batch_id)
-    
-    # ADD TO HTML REPORT
     append_validation_to_html(batch_id, validation_result, batch_stats)
 
-    # Only write to database if validation passed or only warnings present
     if not validation_result.get("success", False) and len(validation_result.get("failed_expectations", [])) > 0:
-        logger.error(f"   ❌ Batch {batch_id}: Critical validation errors - SKIPPING database write")
-        logger.error(f"      Failed expectations: {len(validation_result.get('failed_expectations', []))}")
+        logger.error(f"Batch {batch_id}: Critical validation errors - SKIPPING database write")
+        logger.error(f"Failed expectations: {len(validation_result.get('failed_expectations', []))}")
         return
     
     conn = psycopg2.connect(**PG_CONFIG)
@@ -1189,172 +1253,8 @@ def write_to_postgres(batch_df, batch_id):
     
     try:
         with conn.cursor() as cur:
-            # CREATE MAIN TABLE
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS city_mood_scores (
-                    window_start TIMESTAMP NOT NULL,
-                    window_end TIMESTAMP NOT NULL,
-                    city_mood_score DOUBLE PRECISION NOT NULL,
-                    news_score DOUBLE PRECISION,
-                    air_score DOUBLE PRECISION,
-                    weather_score DOUBLE PRECISION,
-                    traffic_score DOUBLE PRECISION,
-                    alerts_score DOUBLE PRECISION,
-                    construction_score DOUBLE PRECISION,
-                    water_score DOUBLE PRECISION,
-                    total_data_points INTEGER,
-                    avg_aqi DOUBLE PRECISION,
-                    avg_temp DOUBLE PRECISION,
-                    avg_water_level DOUBLE PRECISION,
-                    computed_at TIMESTAMP NOT NULL,
-                    updated_at TIMESTAMP NOT NULL,
-                    PRIMARY KEY (window_start)
-                );
-            """)
             
-            # CREATE HISTORY TABLE WITH VALIDATION COLUMNS
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS city_mood_score_history (
-                    id SERIAL PRIMARY KEY,
-                    window_start TIMESTAMP NOT NULL,
-                    window_end TIMESTAMP NOT NULL,
-                    city_mood_score DOUBLE PRECISION NOT NULL,
-                    news_score DOUBLE PRECISION,
-                    air_score DOUBLE PRECISION,
-                    weather_score DOUBLE PRECISION,
-                    traffic_score DOUBLE PRECISION,
-                    alerts_score DOUBLE PRECISION,
-                    construction_score DOUBLE PRECISION,
-                    water_score DOUBLE PRECISION,
-                    total_data_points INTEGER,
-                    avg_aqi DOUBLE PRECISION,
-                    avg_temp DOUBLE PRECISION,
-                    avg_water_level DOUBLE PRECISION,
-                    computed_at TIMESTAMP NOT NULL,
-                    written_at TIMESTAMP NOT NULL,
-                    batch_id BIGINT NOT NULL,
-                    validation_success BOOLEAN,
-                    validation_success_percent DOUBLE PRECISION,
-                    validation_evaluated_expectations INTEGER,
-                    validation_successful_expectations INTEGER,
-                    validation_failed_expectations INTEGER,
-                    validation_failed_list TEXT,
-                    validation_warnings_list TEXT
-                );
-            """)
-            
-            # Add missing columns to main table if they don't exist
-            cur.execute("""
-                DO $$ 
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_scores' AND column_name='total_data_points'
-                    ) THEN
-                        ALTER TABLE city_mood_scores ADD COLUMN total_data_points INTEGER;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_scores' AND column_name='avg_aqi'
-                    ) THEN
-                        ALTER TABLE city_mood_scores ADD COLUMN avg_aqi DOUBLE PRECISION;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_scores' AND column_name='avg_temp'
-                    ) THEN
-                        ALTER TABLE city_mood_scores ADD COLUMN avg_temp DOUBLE PRECISION;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_scores' AND column_name='avg_water_level'
-                    ) THEN
-                        ALTER TABLE city_mood_scores ADD COLUMN avg_water_level DOUBLE PRECISION;
-                    END IF;
-                END $$;
-            """)
-            
-            # Add missing validation columns to history table if they don't exist
-            cur.execute("""
-                DO $$ 
-                BEGIN
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_score_history' AND column_name='validation_success'
-                    ) THEN
-                        ALTER TABLE city_mood_score_history ADD COLUMN validation_success BOOLEAN;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_score_history' AND column_name='validation_success_percent'
-                    ) THEN
-                        ALTER TABLE city_mood_score_history ADD COLUMN validation_success_percent DOUBLE PRECISION;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_score_history' AND column_name='validation_evaluated_expectations'
-                    ) THEN
-                        ALTER TABLE city_mood_score_history ADD COLUMN validation_evaluated_expectations INTEGER;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_score_history' AND column_name='validation_successful_expectations'
-                    ) THEN
-                        ALTER TABLE city_mood_score_history ADD COLUMN validation_successful_expectations INTEGER;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_score_history' AND column_name='validation_failed_expectations'
-                    ) THEN
-                        ALTER TABLE city_mood_score_history ADD COLUMN validation_failed_expectations INTEGER;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_score_history' AND column_name='validation_failed_list'
-                    ) THEN
-                        ALTER TABLE city_mood_score_history ADD COLUMN validation_failed_list TEXT;
-                    END IF;
-                    
-                    IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
-                        WHERE table_name='city_mood_score_history' AND column_name='validation_warnings_list'
-                    ) THEN
-                        ALTER TABLE city_mood_score_history ADD COLUMN validation_warnings_list TEXT;
-                    END IF;
-                END $$;
-            """)
-            
-            # Main table indexes
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_window_start 
-                    ON city_mood_scores(window_start DESC);
-                CREATE INDEX IF NOT EXISTS idx_city_mood_score 
-                    ON city_mood_scores(city_mood_score);
-            """)
-            
-            # History table indexes
-            cur.execute("""
-                CREATE INDEX IF NOT EXISTS idx_history_window_start 
-                    ON city_mood_score_history(window_start DESC);
-                CREATE INDEX IF NOT EXISTS idx_history_written_at 
-                    ON city_mood_score_history(written_at DESC);
-                CREATE INDEX IF NOT EXISTS idx_history_batch_id 
-                    ON city_mood_score_history(batch_id);
-                CREATE INDEX IF NOT EXISTS idx_history_validation_success 
-                    ON city_mood_score_history(validation_success);
-                CREATE INDEX IF NOT EXISTS idx_history_validation_success_percent 
-                    ON city_mood_score_history(validation_success_percent);
-            """)
-            
-            # EXTRACT VALIDATION METRICS
+            # extract validation details
             stats = validation_result.get("statistics", {})
             validation_success = validation_result.get("success", False)
             validation_success_percent = stats.get("success_percent", 0)
@@ -1365,16 +1265,15 @@ def write_to_postgres(batch_df, batch_id):
             
             # Convert lists to JSON strings for storage
             import json
-            validation_failed_list = json.dumps(validation_result.get("failed_expectations", []))
-            validation_warnings_list = json.dumps(validation_result.get("warnings", []))
+            validation_failed_list = json.dumps(validation_result.get("failed_expectations", "[]"))
+            validation_warnings_list = json.dumps(validation_result.get("warnings", "[]"))
             
-            # PREPARE DATA FOR BOTH TABLES
+            # Prepare data for insertion
             rows_main = []
             rows_history = []
-            current_timestamp = datetime.now(timezone.utc)
             
             for _, row in pdf.iterrows():
-                # Prepare common data
+                # Prepare common data 
                 row_data = (
                     row["window_start"],
                     row["window_end"],
@@ -1386,6 +1285,13 @@ def write_to_postgres(batch_df, batch_id):
                     float(row["alerts_score"]) if not pd.isna(row["alerts_score"]) else None,
                     float(row["construction_score"]) if not pd.isna(row["construction_score"]) else None,
                     float(row["water_score"]) if not pd.isna(row["water_score"]) else None,
+                    int(row["news_count"]) if not pd.isna(row["news_count"]) else 0,
+                    int(row["air_count"]) if not pd.isna(row["air_count"]) else 0,
+                    int(row["weather_count"]) if not pd.isna(row["weather_count"]) else 0,
+                    int(row["traffic_count"]) if not pd.isna(row["traffic_count"]) else 0,
+                    int(row["alert_count"]) if not pd.isna(row["alert_count"]) else 0,
+                    int(row["construction_count"]) if not pd.isna(row["construction_count"]) else 0,
+                    int(row["water_count"]) if not pd.isna(row["water_count"]) else 0,
                     int(row["total_data_points"]) if not pd.isna(row["total_data_points"]) else 0,
                     float(row["avg_aqi"]) if not pd.isna(row["avg_aqi"]) else None,
                     float(row["avg_temp"]) if not pd.isna(row["avg_temp"]) else None,
@@ -1409,13 +1315,14 @@ def write_to_postgres(batch_df, batch_id):
                     validation_warnings_list
                 ))
             
-            # WRITE TO MAIN TABLE (UPSERT)
+            # Append entry to main table
             sql_main = """
                 INSERT INTO city_mood_scores 
                 (window_start, window_end, city_mood_score, news_score, air_score, 
                  weather_score, traffic_score, alerts_score, construction_score, 
-                 water_score, total_data_points, avg_aqi, avg_temp, avg_water_level,
-                 computed_at, updated_at)
+                 water_score, news_count, air_count, weather_count, traffic_count,
+                 alert_count, construction_count, water_count, total_data_points, 
+                 avg_aqi, avg_temp, avg_water_level, computed_at, updated_at)
                 VALUES %s
                 ON CONFLICT (window_start) 
                 DO UPDATE SET 
@@ -1428,6 +1335,13 @@ def write_to_postgres(batch_df, batch_id):
                     alerts_score = EXCLUDED.alerts_score,
                     construction_score = EXCLUDED.construction_score,
                     water_score = EXCLUDED.water_score,
+                    news_count = EXCLUDED.news_count,
+                    air_count = EXCLUDED.air_count,
+                    weather_count = EXCLUDED.weather_count,
+                    traffic_count = EXCLUDED.traffic_count,
+                    alert_count = EXCLUDED.alert_count,
+                    construction_count = EXCLUDED.construction_count,
+                    water_count = EXCLUDED.water_count,
                     total_data_points = EXCLUDED.total_data_points,
                     avg_aqi = EXCLUDED.avg_aqi,
                     avg_temp = EXCLUDED.avg_temp,
@@ -1438,13 +1352,14 @@ def write_to_postgres(batch_df, batch_id):
             execute_values(cur, sql_main, rows_main, page_size=1000)
             logger.info(f"Batch {batch_id}: Successfully written {len(rows_main)} records to main table")
             
-            # WRITE TO HISTORY TABLE (ALWAYS INSERT) WITH VALIDATION DATA
+            # Append history entry for batch 
             sql_history = """
                 INSERT INTO city_mood_score_history 
                 (window_start, window_end, city_mood_score, news_score, air_score, 
                  weather_score, traffic_score, alerts_score, construction_score, 
-                 water_score, total_data_points, avg_aqi, avg_temp, avg_water_level,
-                 computed_at, written_at, batch_id,
+                 water_score, news_count, air_count, weather_count, traffic_count,
+                 alert_count, construction_count, water_count, total_data_points,
+                 avg_aqi, avg_temp, avg_water_level, computed_at, written_at, batch_id,
                  validation_success, validation_success_percent,
                  validation_evaluated_expectations, validation_successful_expectations,
                  validation_failed_expectations, validation_failed_list, validation_warnings_list)
@@ -1452,7 +1367,7 @@ def write_to_postgres(batch_df, batch_id):
             """
             execute_values(cur, sql_history, rows_history, page_size=1000)
             logger.info(f"Batch {batch_id}: Successfully written {len(rows_history)} records to history table")
-            logger.info(f" Validation metrics: Success={validation_success}, "
+            logger.info(f"   Validation metrics: Success={validation_success}, "
                        f"Success%={validation_success_percent:.1f}%, "
                        f"Failed={validation_failed_count}, Warnings={validation_warnings_count}")
             
@@ -1462,9 +1377,7 @@ def write_to_postgres(batch_df, batch_id):
     finally:
         conn.close()
 
-# ============================================================================
-# START STREAMING QUERY
-# ============================================================================
+# Start streaming query
 logger.info("Starting streaming query...")
 
 query = city_mood_final \
@@ -1475,14 +1388,15 @@ query = city_mood_final \
     .option("checkpointLocation", CHECKPOINT_DIR) \
     .start()
 
-logger.info("=" * 80)
-logger.info("PIPELINE IS RUNNING - WITH GREAT EXPECTATIONS VALIDATION")
-logger.info("=" * 80)
+logger.info("===" )
+logger.info("Pipeline is running with validation and writing to Postgres.")
+logger.info("===")
 logger.info(f"Reading from all Kafka topics")
 logger.info(f"Triggering every {TRIGGER_INTERVAL}")
 logger.info(f"Window: {WINDOW_DURATION}")
 logger.info(f"Watermark: {WATERMARK_DELAY}")
 logger.info(f"Database: {PG_CONFIG['host']}/{PG_CONFIG['dbname']}")
+logger.info(f"Timezone: Europe/Berlin")
 logger.info("=" * 80)
 
 try:

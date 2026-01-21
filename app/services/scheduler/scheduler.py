@@ -54,7 +54,7 @@ def sleep_until_next_full_hour():
     next_hour = (now + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
     sleep_seconds = (next_hour - now).total_seconds()
     logger.info(f"Sleeping {int(sleep_seconds)}s until next full hour ({next_hour.isoformat()})")
-    time.sleep(sleep_seconds)
+    time.sleep(sleep_seconds) 
 
 
 def send_fetch_events(producer):

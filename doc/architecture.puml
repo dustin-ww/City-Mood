@@ -9,12 +9,10 @@ skinparam rectangle {
     BorderColor #2196F3
 }
 
-' ===== SCHEDULER =====
 package "Scheduler Service" as scheduler {
     component "Hourly Trigger" as trigger <<Python>>
 }
 
-' ===== FETCHER SERVICES =====
 package "Data Fetcher Services" as fetchers {
     component "Weather Fetcher" as weather <<Open-Meteo>>
     component "Air Pollution Fetcher" as airpollution <<Open-Meteo>>
@@ -22,10 +20,11 @@ package "Data Fetcher Services" as fetchers {
     component "Transparenz Fetcher" as transparenz <<Hamburg>>
     component "NINA Alert Fetcher" as nina <<BBK>>
     component "Water Level Fetcher" as water <<PegelOnline>>
-    component "NDR News Fetcher" as ndr <<RSS>>
+    component "BBC News Fetcher" as ndr <<RSS>>
+    component "NYT News Fetcher" as nyt <<RSS>>
+    component "Street Construction Fetcher" as scf <<GeoJSON>>
 }
 
-' ===== KAFKA =====
 package "Apache Kafka (KRaft)" as kafka_system {
     collections "Trigger Topics" as trigger_topics
     collections "Data Topics" as data_topics
@@ -35,6 +34,7 @@ package "Apache Kafka (KRaft)" as kafka_system {
       - fetch-air-pollution
       - fetch-traffic
       - fetch-news
+      ...
     end note
     
     note right of data_topics
@@ -44,90 +44,77 @@ package "Apache Kafka (KRaft)" as kafka_system {
       - hh-transparenz-events
       - hh-public-alerts-current
       - hh-water-level-current
-      - hh-ndr-news
+      - nyt-news
+      - bbc-news
+      - hh-construction-current
     end note
 }
 
-' ===== SPARK CLUSTER =====
 package "Apache Spark Cluster" as spark_cluster {
     component "Spark Master" as spark_master
     component "Spark Worker(s)" as spark_worker
     component "PySpark Streaming Job" as pyspark <<Aggregation + DQ>>
 }
 
-' ===== POSTGRESQL =====
 database "PostgreSQL 16" as postgres {
     collections "Tables" as pg_tables
     
     note right of pg_tables
-      - daily_source_counts
-      - daily_mood_score
+      - city_mood_scores
+      - city_mood_score_history
       - cities
-      - mood_aggregates
     end note
 }
 
-' ===== GRAFANA =====
 component "Grafana Dashboards" as grafana <<Visualization>>
 
-' ===== MONITORING =====
 component "Kafka UI" as kafka_ui <<Monitoring>>
 
-' ===== CONNECTIONS =====
 
-' Scheduler triggers Fetchers via Kafka
 trigger --> trigger_topics : "Sends hourly\ntrigger events"
 trigger_topics --> weather : "fetch-weather"
 trigger_topics --> airpollution : "fetch-air-pollution"
 trigger_topics --> traffic : "fetch-traffic"
-trigger_topics --> transparenz
-trigger_topics --> nina
-trigger_topics --> water
-trigger_topics --> ndr : "fetch-news"
+trigger_topics --> transparenz: "fetch-transparenz"
+trigger_topics --> nina: "fetch-nina"
+trigger_topics --> water: "fetch-water"
+trigger_topics --> ndr : "fetch-bbc"
+trigger_topics --> nyt: "fetch-nyt"
+trigger_topics --> ndr: "fetch-bbc"
+trigger_topics --> scf: "fetch-scf"
 
-' Fetchers send data to Kafka
 weather --> data_topics : "hh-weather-*"
 airpollution --> data_topics : "hh-air-pollution-*"
 traffic --> data_topics : "hh-traffic-data"
 transparenz --> data_topics : "hh-transparenz-events"
 nina --> data_topics : "hh-public-alerts-*"
 water --> data_topics : "hh-water-level-*"
-ndr --> data_topics : "hh-ndr-news"
+ndr --> data_topics : "bbc-news"
+nyt --> data_topics: "nyt_news"
+scf --> data_topics: "hh-street-construction"
 
-' Spark reads from Kafka
 data_topics --> pyspark : "readStream"
 
-' Spark cluster internal
 spark_master --> spark_worker : "Coordinates"
 spark_worker --> pyspark : "Executes"
 
-' Spark writes to Postgres
 pyspark --> postgres : "UPSERT\n(ON CONFLICT)"
 
-' Grafana reads from Postgres
 postgres --> grafana : "SQL Queries"
 
-' Kafka UI monitors Kafka
 kafka_ui --> kafka_system : "Monitors\nTopics & Consumers"
 
-' ===== NOTES =====
 note bottom of spark_cluster
   **Stream Processing:**
-  - Micro-Batch (10s)
-  - Watermarking (1 day)
-  - GroupBy: day_date, source, category
-  - Data Quality Checks
+  - Micro-Batch (20s Trigger)
+  - Watermark Delay (5 min)
+  - Window Duration (10 min)
+  - Great Expectations Data Quality Check
 end note
 
-note bottom of postgres
-  **UPSERT Strategy:**
-  INSERT ... ON CONFLICT
-  DO UPDATE
-  → Idempotent writes
-end note
 
 note top of fetchers
-  **7 Independent Microservices**
+  **Independent Microservices**
   Each with own Docker container
   Event-Driven via Kafka triggers
 end note

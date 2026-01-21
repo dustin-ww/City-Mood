@@ -1,25 +1,26 @@
-# City Mood Project
+# City Mood Map Project
 
-This big data project aims to analyze and visualize the mood of a city based on various data sources including traffic patterns, social media activity, and environmental factors.
+This big data project aims to analyze and visualize the mood of a city based on various data sources including traffic patterns, news feeds, and environmental factors.
 
 ## Installation
 
-Use the setup.sh script to set up the virtual environment and install dependencies:
+You can easily set up the system using the build_container.sh script. This will automatically build the necessary services as Docker containers. These containers are saved in your local Docker registry. Please note that the building process may take some time due to some large dependencies. 
 
 ```bash
-source ./setup.sh
+./build_containers.sh
 ```
 
+After that you can simply use the docker compose file from the main directory 
 ## Usage
 
 ```sh
 docker compose up -d
 ```
-This command will start all necessary services including Kafka, Apache Spark and Postgres. 
+This command will start all the necessary services, including Kafka, Apache Spark, PostgreSQL, and Grafana. 
 
-All data fetcher scripts will run automatically based on their defined schedules. They can also be run manually if needed and found in /app/api-fetcher/.
+All data fetcher scripts run automatically based on schedules defined by the central scheduler service, which coordinates fetches via dedicated Kafka topics (fetch-*). These scripts can also be run manually if needed and are located in the /app/api-fetcher/ directory.
 
-The Kafka ui will be available at: http://localhost:8090. 
+The Kafka UI will be available at http://localhost:8090. 
 
 ## Contributing
 

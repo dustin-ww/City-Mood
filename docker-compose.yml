@@ -26,7 +26,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db/init:/docker-entrypoint-initdb.d
       - postgres-datav2:/var/lib/postgresql/data
     networks:
       - spark-network
@@ -49,6 +49,7 @@ services:
         PLAINTEXT://0.0.0.0:9092,
         EXTERNAL://0.0.0.0:29092,
         CONTROLLER://0.0.0.0:9093
+      # Advertise die richtigen Hostnamen für verschiedene Zugriffswege
       KAFKA_ADVERTISED_LISTENERS: >
         PLAINTEXT://kafka:9092,
         EXTERNAL://localhost:29092
@@ -80,14 +81,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-  # prometheus:
-  #   image: prom/prometheus:v3.8.1
-  #   ports:
-  #     - "9090:9090"
-  #   volumes:
-  #     - ./prometheus:/etc/prometheus
-
 
   # Kafka UI
   kafka-ui:

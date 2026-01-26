@@ -1743,10 +1743,10 @@ networks:
 
 *PostgreSQL:*
 - User: `spark`
-- Password: `spark` (⚠️ Produktiv: Secrets Management)
+- Password: `spark` (Produktiv: Secrets Management)
 
 *Grafana:*
-- Admin: `admin` / `admin` (⚠️ Produktiv: ändern!)
+- Admin: `admin` / `admin` (Produktiv: ändern!)
 
 == Datenschutz (DSGVO)
 

@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -57,7 +57,7 @@
               },
               {
                 "color": "green",
-                "value": 0.75
+                "value": 0.71
               }
             ]
           }
@@ -157,7 +157,7 @@
           "zoom": 15
         }
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -238,7 +238,7 @@
               },
               {
                 "color": "green",
-                "value": 0.75
+                "value": 0.71
               }
             ]
           }
@@ -272,9 +272,9 @@
           "sort": "none"
         },
         "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "xTickLabelSpacing": 100
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -395,9 +395,9 @@
           "sort": "none"
         },
         "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "xTickLabelSpacing": 100
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -588,7 +588,7 @@
         "xTickLabelRotation": 0,
         "xTickLabelSpacing": 100
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -709,9 +709,9 @@
           "sort": "none"
         },
         "xTickLabelRotation": 0,
-        "xTickLabelSpacing": 0
+        "xTickLabelSpacing": 100
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -837,7 +837,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -992,7 +992,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -1080,7 +1080,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -1168,7 +1168,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -1202,7 +1202,7 @@
           "table": "city_mood_scores"
         }
       ],
-      "title": "Number of City Mood Scores",
+      "title": "Total Number of City Mood Scores",
       "type": "stat"
     },
     {
@@ -1228,8 +1228,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
+        "h": 7,
+        "w": 5,
         "x": 0,
         "y": 59
       },
@@ -1251,8 +1251,8 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/^validation_success_percent$/",
-          "values": false
+          "fields": "",
+          "values": true
         },
         "sort": "desc",
         "tooltip": {
@@ -1261,14 +1261,14 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT\n  COALESCE(validation_success::text, 'null') AS label,\n  COUNT(*) AS value\nFROM city_mood_score_history\nWHERE computed_at IS NOT NULL\n  AND $__timeFilter(computed_at)\nGROUP BY validation_success\nORDER BY label;\n",
+          "rawSql": "SELECT\n  CASE\n    WHEN validation_success IS TRUE  THEN 'true'\n    WHEN validation_success IS FALSE THEN 'false'\n    ELSE 'null'\n  END AS label,\n  ROUND(\n    COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (),\n    2\n  ) AS value\nFROM city_mood_score_history\nWHERE computed_at IS NOT NULL\n  AND $__timeFilter(computed_at)\nGROUP BY label\nORDER BY label;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1301,6 +1301,94 @@
       ],
       "title": "Validation Success Rate",
       "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P143A3F046755ADB7"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "footer": {
+              "reducers": []
+            },
+            "hideFrom": {
+              "viz": false
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 9,
+        "x": 5,
+        "y": 59
+      },
+      "id": 14,
+      "options": {
+        "cellHeight": "sm",
+        "showHeader": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "city_mood",
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT\n  computed_at,\n  validation_warnings_list\nFROM city_mood_score_history\nWHERE validation_warnings_list IS NOT NULL\n  AND validation_warnings_list <> '[]'\nORDER BY computed_at DESC\nLIMIT 50;\n",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "parameters": [
+                  {
+                    "name": "validation_failed_list",
+                    "type": "functionParameter"
+                  }
+                ],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
+          "table": "city_mood_score_history"
+        }
+      ],
+      "title": "List of Warnings during Validation",
+      "type": "table"
     },
     {
       "datasource": {
@@ -1339,30 +1427,25 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 8,
+        "h": 7,
+        "w": 10,
+        "x": 14,
         "y": 59
       },
       "id": 4,
       "options": {
         "cellHeight": "sm",
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "validation_failed_list"
-          }
-        ]
+        "sortBy": []
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "SELECT validation_failed_list FROM city_mood_score_history LIMIT 50",
+          "rawSql": "SELECT\n  computed_at,\n  validation_failed_list\nFROM city_mood_score_history\nWHERE validation_failed_list IS NOT NULL\n  AND validation_failed_list <> '[]'\nORDER BY computed_at DESC\nLIMIT 50;\n",
           "refId": "A",
           "sql": {
             "columns": [
@@ -1389,96 +1472,8 @@
           "table": "city_mood_score_history"
         }
       ],
-      "title": "List of failed Validations",
+      "title": "List of Errors during Validation",
       "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "P143A3F046755ADB7"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 10,
-        "x": 14,
-        "y": 59
-      },
-      "id": 8,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.3.0",
-      "targets": [
-        {
-          "dataset": "city_mood",
-          "editorMode": "builder",
-          "format": "table",
-          "rawSql": "SELECT COUNT(id) FROM city_mood_score_history LIMIT 50 ",
-          "refId": "A",
-          "sql": {
-            "columns": [
-              {
-                "name": "COUNT",
-                "parameters": [
-                  {
-                    "name": "id",
-                    "type": "functionParameter"
-                  }
-                ],
-                "type": "function"
-              }
-            ],
-            "groupBy": [
-              {
-                "property": {
-                  "type": "string"
-                },
-                "type": "groupBy"
-              }
-            ],
-            "limit": 50
-          },
-          "table": "city_mood_score_history"
-        }
-      ],
-      "title": "Number of calculated batches",
-      "type": "stat"
     },
     {
       "datasource": {
@@ -1530,10 +1525,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 7,
+        "w": 18,
         "x": 0,
-        "y": 65
+        "y": 66
       },
       "id": 13,
       "options": {
@@ -1559,7 +1554,7 @@
         "xTickLabelRotation": 0,
         "xTickLabelSpacing": 100
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "12.3.1",
       "targets": [
         {
           "dataset": "city_mood",
@@ -1613,6 +1608,94 @@
       ],
       "title": "Validation Expectations - Batches",
       "type": "barchart"
+    },
+    {
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "P143A3F046755ADB7"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 6,
+        "x": 18,
+        "y": 66
+      },
+      "id": 8,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.1",
+      "targets": [
+        {
+          "dataset": "city_mood",
+          "editorMode": "builder",
+          "format": "table",
+          "rawSql": "SELECT COUNT(id) FROM city_mood_score_history LIMIT 50 ",
+          "refId": "A",
+          "sql": {
+            "columns": [
+              {
+                "name": "COUNT",
+                "parameters": [
+                  {
+                    "name": "id",
+                    "type": "functionParameter"
+                  }
+                ],
+                "type": "function"
+              }
+            ],
+            "groupBy": [
+              {
+                "property": {
+                  "type": "string"
+                },
+                "type": "groupBy"
+              }
+            ],
+            "limit": 50
+          },
+          "table": "city_mood_score_history"
+        }
+      ],
+      "title": "Number of calculated batches",
+      "type": "stat"
     }
   ],
   "preload": false,
@@ -1629,5 +1712,5 @@
   "timezone": "browser",
   "title": "City Mood Map",
   "uid": "advvwx2",
-  "version": 33
+  "version": 15
 }

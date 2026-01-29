@@ -29,7 +29,7 @@ class BaseFetcher:
         raise NotImplementedError()
 
     def run(self):
-        logger.info(f"{self.__class__.__name__} started – waiting for Kafka events on topic {self.wakeup_topic}")
+        logger.info(f"{self.__class__.__name__} started - waiting for Kafka events on topic {self.wakeup_topic}")
         redis = get_redis_client()
         interval = max(1, int(get_fetch_interval()))
         lock_key = f"fetcher:{self.wakeup_topic}:lock"

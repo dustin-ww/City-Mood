@@ -82,7 +82,7 @@ logger.info(f"Window Duration: {WINDOW_DURATION}")
 logger.info(f"Watermark Delay: {WATERMARK_DELAY}")
 logger.info(f"Output Mode: UPDATE (union-based aggregation)")
 logger.info(f"Data Quality: Great Expectations")
-logger.info("=" * 80)
+logger.info("===")
 
 os.makedirs("./gx-reports", exist_ok=True)
 
@@ -513,8 +513,7 @@ def create_expectation_suite():
 
 def apply_expectations(validator):
     """
-    Apply the expectations to the validator (Great Expectations >=1.0 style).
-    Keep critical expectations first.
+    Apply the expectations to the validator
     """
     # Main Score Validation
     validator.expect_column_to_exist("city_mood_score")

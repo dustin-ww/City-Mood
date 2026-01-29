@@ -41,7 +41,6 @@ DATA_TOPICS = [
     "hh-transparenz-events",
 ]
 
-# Combine all topics for creation
 ALL_TOPICS = FETCH_TOPICS + DATA_TOPICS
 
 RETENTION_MS = 24 * 60 * 60 * 1000  # 24 hours
@@ -92,11 +91,10 @@ def ensure_topics_exist():
             else:
                 topics_already_exist.append(topic)
         
-        # Log existing topics
         if topics_already_exist:
             logger.info(f"Topics already exist ({len(topics_already_exist)}):")
             for topic in topics_already_exist:
-                logger.info(f"  ✓ {topic}")
+                logger.info(f"{topic}")
         
         # Create missing topics
         if topics_to_create:
@@ -116,7 +114,7 @@ def ensure_topics_exist():
             
             try:
                 admin_client.create_topics(new_topics, validate_only=False)
-                logger.info(f"✓ Successfully created {len(new_topics)} topics")
+                logger.info(f"Successfully created {len(new_topics)} topics")
             except TopicAlreadyExistsError as e:
                 logger.warning(f"Some topics already existed (race condition): {e}")
             except Exception as e:
@@ -137,7 +135,6 @@ def ensure_topics_exist():
 # Ensure all topics exist before starting
 ensure_topics_exist()
 
-# Create Kafka producer
 producer = KafkaProducer(
     bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
     value_serializer=lambda v: json.dumps(v).encode("utf-8")
@@ -147,7 +144,6 @@ if TRIGGER_ON_START or IMMEDIATE_TRIGGER:
     logger.info("Immediate fetch trigger enabled – sending events now")
     send_fetch_events(producer)
 
-# Main scheduling loop
 logger.info("Starting hourly fetch scheduler...")
 while True:
     sleep_until_next_full_hour()

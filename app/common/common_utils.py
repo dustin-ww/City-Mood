@@ -43,13 +43,6 @@ FETCH_INTERVAL_HOURS = float(os.getenv("API_REFRESH_INTERVAL_HOURS", 1))
 FETCH_INTERVAL = int(FETCH_INTERVAL_HOURS * 3600)
 
 def get_fetch_interval() -> int:
-    # r = get_redis_client()
-    # val = r.get(redis_key)
-    # if val:
-    #     try:
-    #         return int(val)
-    #     except ValueError:
-    #         logger.warning(f"Invalid fetch_interval in Redis: {val}, using ENV default")
     return FETCH_INTERVAL
 
 # Redis Helpers

@@ -401,7 +401,7 @@ Diese Dokumentation ist wie folgt strukturiert:
 
 == Architektur-Überblick
 
-Das City Mood Map System folgt einer *Event-Driven Architecture* (EDA) mit Elementen der *Lambda Architecture*. Die Kernidee: Alle Komponenten kommunizieren asynchron über Events, die in Apache Kafka als zentralem Event-Bus persistiert werden.
+Das City Mood Map System folgt einer *Event-Driven Architecture* (EDA) mit Elementen der *Kappa Architecture*. Die Kernidee: Alle Komponenten kommunizieren asynchron über Events, die in Apache Kafka als zentralem Event-Bus persistiert werden.
 
 #figure(
   image("architecture.png", width: 100%),
@@ -416,10 +416,10 @@ Das City Mood Map System folgt einer *Event-Driven Architecture* (EDA) mit Eleme
 - Skalierbarkeit durch unabhängige Services
 - Fehlertoleranz durch Event-Replay
 
-*Lambda Architecture Elemente:*
-- *Speed Layer:* Spark Structured Streaming (Echtzeit-Aggregation)
-- *Batch Layer:* Tägliche Aggregationen in PostgreSQL
-- *Serving Layer:* Grafana Dashboards
+*Kappa Architecture Elemente:*
+- *Message Broker:* Einsatz von Kafka als Message Broker. Streaming-Daten werden in append-only Logs gespeichert; zusätzlich wird Kafka als kurzfristige Persistenz genutzt.
+- *Speed Layer:* Verwendung von Spark Structured Streaming zur stündlichen Echtzeit-Aggregation von Micro-Batches innerhalb einer einheitlichen Spark-Streaming-Pipeline.
+- *Serving Layer:* PostgreSQL sowie Grafana-Dashboards zur Bereitstellung der Ergebnisse für den Nutzer. Die aggregierten Werte werden kontinuierlich persistiert und ermöglichen komplexe Abfragen und Visualisierungen
 
 == Komponenten-Übersicht
 
@@ -442,16 +442,22 @@ Das System besteht aus folgenden Hauptkomponenten:
   [BBC News], [Parst RSS-Feed + Sentiment], [Python + Kafka + Flair], [1],
   [NYT News], [Parst RSS-Feeds + Sentiment], [Python + Kafka + Flair], [1],
   [Street Construction], [Holt Baustellendaten], [Python + Kafka + Redis], [1],
-  [Kafka Broker], [Zentraler Event-Bus], [Kafka 4.1.1 (KRaft)], [1],
-  [Redis], [Caching + Deduplizierung], [Redis 8.4.0], [1],
+  [Kafka Broker], [Zentraler Event-Bus], [Kafka 4.1.1 (KRaft)], [1-n],
+  [Redis], [Caching + Deduplizierung], [Redis 8.4.0], [1-n (über Cluster)],
   [Spark Master], [Cluster-Koordination], [Spark 3.5.1], [1],
   [Spark Worker], [Transformationen (10G, 6 Cores)], [Spark 3.5.1], [1-n],
   [PySpark Client], [Streaming-Job (6G Driver)], [PySpark], [1],
-  [PostgreSQL], [Persistenz + History], [PostgreSQL 16], [1],
+  [PostgreSQL], [Persistenz + History], [PostgreSQL 16], [1-n (read)],
   [Grafana], [Visualisierung], [Grafana Latest], [1],
   [Kafka UI], [Monitoring], [provectuslabs/kafka-ui], [1],
 )
 
+=== Skalierbarkeit
+
+Da Skalierbarkeit eine zentrale Anforderung des Systems darstellt, unterstützen mehrere Komponenten eine horizontale Skalierung. Apache Kafka kann durch das Hinzufügen weiterer Broker skaliert werden, Apache Spark durch zusätzliche Worker-Knoten und PostgreSQL durch Read-Replicas zur Skalierung von Lesezugriffen. Redis lässt sich über den nativen Cluster-Modus ebenfalls horizontal skalieren, indem Daten auf mehrere Shards verteilt werden.
+
+Im aktuellen Setup wird Apache Spark bereits horizontal skaliert, indem ein zusätzlicher Worker eingesetzt wird. Die Spark-Jobs werden bereits über das Netzwerk an diesen Worker verteilt. Darüber hinaus sind vertikale Skalierungen der einzelnen Komponenten grundsätzlich möglich, beispielsweise durch die Zuweisung zusätzlicher CPU- oder Speicherressourcen. Die hierfür notwendigen Anpassungen am Docker-Compose-Setup sind mit geringem Aufwand realisierbar.
+#pagebreak()
 == Datenfluss End-to-End
 
 #block(
@@ -536,7 +542,7 @@ admin_client.create_topics([
              topic_configs={"retention.ms": "86400000"})
 ])
 ```
-
+#pagebreak()
 == Weather Fetcher (Open-Meteo API)
 
 *API:* `https://api.open-meteo.com/v1/forecast`
@@ -578,6 +584,7 @@ admin_client.create_topics([
 
 *Kafka Topic:* `hh-air-pollution-current`
 
+#pagebreak()
 == Traffic Fetcher (Lokale GeoJSON-Daten)
 
 *Datenquelle:* Lokale ZIP-Archive mit GeoJSON-Features
@@ -623,6 +630,7 @@ KEYWORDS = ["unfall", "stoerung", "sperrung",
 }
 ```
 
+#pagebreak()
 == NINA Alert Fetcher (BBK Warnmeldungen)
 
 *API:* `https://nina.api.proxy.bund.dev/api31/dashboard/020000000000.json`
@@ -766,6 +774,7 @@ KEYWORDS = ["unfall", "stoerung", "sperrung",
 }
 ```
 
+#pagebreak()
 == Kafka Topics Übersicht
 
 === Trigger Topics (9)
@@ -916,7 +925,7 @@ windowed_df = parsed_df \
         avg("score").alias("avg_score")
     )
 ```
-
+#pagebreak()
 *Window-Konfiguration:*
 - Window-Größe: 60 Minuten
 - Watermark: 5 Minuten (für verspätete Events)
@@ -1783,22 +1792,24 @@ networks:
 - Disk: 20 GB freier Speicher
 
 *Software:*
-- Docker Desktop (Windows/Mac) oder Docker Engine (Linux)
-- Docker Compose 2.0+
-- Git (zum Klonen des Repos)
+- Docker Engine
+- Docker Compose
+- Git 
 
 == Installation
+
+Insbesondere das Bauen der Container kann eine Weile dauern, da diese mehrere größere Abhängigkeiten herunterladen und installieren müssen.
 
 ```sh
 # Repository klonen
 git clone https://github.com/your-repo/city-mood.git
 cd city-mood
 
-# Docker Compose Services starten
-docker compose up -d --build
+# Bauen der verschiedenen Container 
+./build_containers.sh 
 
-# Logs verfolgen
-docker logs -f pyspark-client
+# Docker Compose Services starten
+docker compose up 
 ```
 
 == Konfiguration
@@ -1813,10 +1824,7 @@ POSTGRES_DB=city_mood
 
 == Datenbank initialisieren
 
-```sh
-# PostgreSQL Schema laden
-Get-Content sql/init.sql | docker exec -i postgres psql -U spark -d city_mood
-```
+Das Datenbank-Schema ist mit dem aktuellen Deployment bereits automatisch vorhanden beziehungsweise wird automatisch erstellt. 
 
 == Kafka Topics erstellen
 
@@ -1855,6 +1863,7 @@ docker compose down
 docker compose down -v
 ```
 
+#pagebreak()
 == Wichtige URLs
 
 #table(
@@ -1920,7 +1929,7 @@ docker exec kafka /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server local
 ```sh
 docker exec -it postgres psql -U spark -d city_mood -c "SELECT COUNT(*) FROM daily_source_counts;"
 ```
-
+#pagebreak()
 == Debugging-Strategien
 
 *Spark UI nutzen:*
@@ -2188,7 +2197,7 @@ City-Mood/
 - Fakultät Technik und Informatik
 
 *Repository:*
-- GitHub: (wird noch veröffentlicht)
+- GitHub: https://github.com/dustin-ww/City-Mood/
 
 #pagebreak()
 

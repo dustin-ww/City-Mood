@@ -10,7 +10,7 @@ x-fetcher-infra: &fetcher-infra
   environment:
     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     LOG_LEVEL: INFO
-    API_REFRESH_INTERVAL_HOURS: "0"  # Default minunum wait to 30 minutes to avoid overwhelming APIs
+    API_REFRESH_INTERVAL_HOURS: "0"  # Default minimum wait to 30 minutes to avoid overwhelming APIs
 
 
 services:
@@ -40,16 +40,15 @@ services:
       - "127.0.0.1:9092:9092"     # internal access
       - "127.0.0.1:29092:29092"   # external access
     environment:
-      # ---- KRaft ----
+      # KRaft
       KAFKA_PROCESS_ROLES: "broker,controller"
       KAFKA_NODE_ID: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
-      # ---- Listener config ----
+      # Listener config
       KAFKA_LISTENERS: >
         PLAINTEXT://0.0.0.0:9092,
         EXTERNAL://0.0.0.0:29092,
         CONTROLLER://0.0.0.0:9093
-      # Advertise die richtigen Hostnamen für verschiedene Zugriffswege
       KAFKA_ADVERTISED_LISTENERS: >
         PLAINTEXT://kafka:9092,
         EXTERNAL://localhost:29092
@@ -60,11 +59,11 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      # ---- single-node ----
+      # single-node
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      # ---- Storage ----
+      # Storage 
       KAFKA_LOG_DIRS: /var/lib/kafka/data
     volumes:
       - kafka-datav3:/var/lib/kafka/data
@@ -162,7 +161,6 @@ services:
     stdin_open: true
     tty: true
     environment:
-      # KRITISCH: Driver Memory!
       - SPARK_DRIVER_MEMORY=6G
       - SPARK_EXECUTOR_MEMORY=10G
       - PYSPARK_DRIVER_PYTHON=python3
